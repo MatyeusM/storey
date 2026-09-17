@@ -1,0 +1,94 @@
+name: release
+
+# Tag vX.Y.Z -> build all three apps per OS -> GitHub Release with checksums.
+# Patch notes come from CHANGELOG.md via scripts/release-notes.sh.
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  cli:
+    strategy:
+      matrix:
+        include:
+          - os: ubuntu-latest
+            goos: linux
+            goarch: amd64
+          - os: windows-latest
+            goos: windows
+            goarch: amd64
+          - os: macos-latest
+            goos: darwin
+            goarch: amd64
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: jdx/mise-action@v5
+      - run: sh scripts/dist-cli.sh "${GITHUB_REF_NAME#v}"
+      - uses: actions/upload-artifact@v7
+        with:
+          name: cli-${{ matrix.goos }}-${{ matrix.goarch }}
+          path: dist/
+
+  tui:
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: jdx/mise-action@v5
+      - run: mise run build:tui-release
+      - uses: actions/upload-artifact@v7
+        with:
+          name: tui-${{ matrix.os }}
+          path: |
+            apps/tui/target/release/storey-tui
+            apps/tui/target/release/storey-tui.exe
+            apps/tui/target/release/storey
+            apps/tui/target/release/storey.exe
+
+  gui:
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: jdx/mise-action@v5
+      - name: Install Qt (Linux)
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y qt6-base-dev qt6-declarative-dev
+      - name: Install Qt (macOS)
+        if: runner.os == 'macOS'
+        run: brew install qt@6
+      - name: Install Qt (Windows)
+        if: runner.os == 'Windows'
+        uses: jurplel/install-qt-action@v4
+        with:
+          version: '6.8.*'
+      - run: mise run build:gui-release
+      - uses: actions/upload-artifact@v7
+        with:
+          name: gui-${{ matrix.os }}
+          path: apps/gui/target/release/storey-gui*
+
+  publish:
+    needs: [cli, tui, gui]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - run: sh scripts/release-notes.sh CHANGELOG.md > /tmp/notes.md
+      - uses: actions/download-artifact@v8
+        with:
+          path: dist-all
+          merge-multiple: true
+      - run: find dist-all -type f | sort | xargs sha256sum > dist-all/SHA256SUMS
+      - uses: softprops/action-gh-release@v3
+        with:
+          files: dist-all/*
+          body_path: /tmp/notes.md

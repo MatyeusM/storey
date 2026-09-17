@@ -1,0 +1,57 @@
+# local dev fixtures (libraries, plugins, scratch scripts) — never commit
+local/
+
+# build outputs
+build/
+dist/
+target/
+apps/cli/bin/
+apps/cli/*.exe
+apps/tui/target/
+apps/shared/target/
+apps/gui/target/
+*.o
+*.a
+
+# Go
+*.test
+*.out
+vendor/
+
+# Rust
+**/*.rs.bk
+Cargo.lock.bak
+.cargo/
+
+# Python (scripts / tooling)
+__pycache__/
+*.py[cod]
+.venv/
+*.egg-info/
+
+# mise
+.mise/
+mise.local.toml
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# editors
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.qmlls.ini
+
+# release / packaging
+*.tar.gz
+*.zip
+*.deb
+*.rpm
+*.AppImage
+*.dmg
+*.msi
+*.pkg.tar.zst

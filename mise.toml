@@ -1,0 +1,139 @@
+[tools]
+go = "latest"
+rust = "latest"
+
+[settings]
+experimental = true
+
+# Every task body is a single-tool invocation (or `&&` chain) that runs
+# unchanged under both `sh` and `cmd`, with `run_windows` overrides where
+# shells differ (path separators, file discovery). Same convention as
+# .reference/mise.toml. No implementation lives in tasks — they only
+# orchestrate per-app toolchains.
+
+# ---------- top-level orchestration ----------
+
+[tasks.build]
+description = "Build all apps (cli + tui + gui configure+build)"
+depends = ["build:cli", "build:tui", "build:gui"]
+
+[tasks.test]
+description = "Test all apps (cli + shared + tui + gui)"
+depends = ["test:cli", "test:shared", "test:tui", "test:gui"]
+
+[tasks.lint]
+description = "Lint all apps"
+depends = ["lint:cli", "lint:shared", "lint:tui", "lint:gui"]
+
+[tasks.fmt]
+description = "Format Go + Rust sources"
+run = "gofmt -w apps/cli && cargo fmt --manifest-path apps/tui/Cargo.toml && cargo fmt --manifest-path apps/shared/Cargo.toml && cargo fmt --manifest-path apps/gui/Cargo.toml"
+run_windows = "gofmt -w apps\\cli && cargo fmt --manifest-path apps\\tui\\Cargo.toml && cargo fmt --manifest-path apps\\shared\\Cargo.toml && cargo fmt --manifest-path apps\\gui\\Cargo.toml"
+
+[tasks.clean]
+description = "Remove build outputs"
+run = "rm -rf build dist apps/cli/bin apps/tui/target apps/shared/target apps/gui/target"
+run_windows = "if exist build rmdir /s /q build & if exist dist rmdir /s /q dist"
+
+[tasks.dev]
+description = "Print dev entrypoints"
+run = "echo \"cli: mise run dev:cli | tui: mise run dev:tui | gui: mise run dev:gui\""
+
+# ---------- cli (Go) ----------
+
+[tasks."build:cli"]
+description = "Build storey CLI with plain go build (no downloads beyond modules)"
+run = "go -C apps/cli build -o bin/storey ./cmd/storey"
+run_windows = "go -C apps\\cli build -o bin\\storey.exe .\\cmd\\storey"
+
+[tasks."test:cli"]
+description = "Vet + test the CLI"
+run = "go -C apps/cli vet ./... && go -C apps/cli test ./..."
+run_windows = "go -C apps\\cli vet ./... && go -C apps\\cli test ./..."
+
+[tasks."lint:cli"]
+description = "gofmt check + go vet + size limits for the CLI"
+run = "gofmt -l apps/cli && go -C apps/cli vet ./... && sh scripts/check-limits.sh apps/cli"
+run_windows = "gofmt -l apps\\cli && go -C apps\\cli vet ./... && sh scripts/check-limits.sh apps/cli"
+
+[tasks."dev:cli"]
+description = "Run the CLI from source"
+run = "go -C apps/cli run ./cmd/storey --help"
+run_windows = "go -C apps\\cli run .\\cmd\\storey --help"
+
+# ---------- tui (Rust / ratatui) ----------
+
+[tasks."build:tui"]
+description = "Build storey-tui with cargo, CLI bundled beside it so it is found"
+depends = ["build:cli"]
+run = "cargo build --manifest-path apps/tui/Cargo.toml && cp apps/cli/bin/storey apps/tui/target/debug/storey"
+run_windows = "cargo build --manifest-path apps\\tui\\Cargo.toml && copy apps\\cli\\bin\\storey.exe apps\\tui\\target\\debug\\storey.exe"
+
+[tasks."build:tui-release"]
+description = "Release build of storey-tui, CLI bundled beside it so it is found"
+depends = ["build:cli"]
+run = "cargo build --release --manifest-path apps/tui/Cargo.toml && cp apps/cli/bin/storey apps/tui/target/release/storey"
+run_windows = "cargo build --release --manifest-path apps\\tui\\Cargo.toml && copy apps\\cli\\bin\\storey.exe apps\\tui\\target\\release\\storey.exe"
+
+[tasks."test:tui"]
+description = "Test storey-tui with cargo"
+run = "cargo test --manifest-path apps/tui/Cargo.toml"
+run_windows = "cargo test --manifest-path apps\\tui\\Cargo.toml"
+
+[tasks."lint:tui"]
+description = "cargo fmt check + clippy for the TUI"
+run = "cargo fmt --manifest-path apps/tui/Cargo.toml -- --check && cargo clippy --manifest-path apps/tui/Cargo.toml --all-targets -- -D warnings && sh scripts/check-limits.sh apps/tui"
+run_windows = "cargo fmt --manifest-path apps\\tui\\Cargo.toml -- --check && cargo clippy --manifest-path apps\\tui\\Cargo.toml --all-targets -- -D warnings && sh scripts/check-limits.sh apps/tui"
+
+[tasks."dev:tui"]
+description = "Build the CLI, run the TUI against the fresh binary (extra args reach the binary)"
+depends = ["build:cli"]
+run = "cargo run --manifest-path apps/tui/Cargo.toml -- --storey-bin {{config_root}}/apps/cli/bin/storey"
+run_windows = "cargo run --manifest-path apps\\tui\\Cargo.toml -- --storey-bin {{config_root}}/apps/cli/bin/storey.exe"
+
+# ---------- shared (Rust lib, TUI/GUI common layer) ----------
+
+[tasks."test:shared"]
+description = "Test storey-shared with cargo"
+run = "cargo test --manifest-path apps/shared/Cargo.toml"
+run_windows = "cargo test --manifest-path apps\\shared\\Cargo.toml"
+
+[tasks."lint:shared"]
+description = "cargo fmt check + clippy for storey-shared"
+run = "cargo fmt --manifest-path apps/shared/Cargo.toml -- --check && cargo clippy --manifest-path apps/shared/Cargo.toml -- -D warnings && sh scripts/check-limits.sh apps/shared"
+run_windows = "cargo fmt --manifest-path apps\\shared\\Cargo.toml -- --check && cargo clippy --manifest-path apps\\shared\\Cargo.toml -- -D warnings && sh scripts/check-limits.sh apps/shared"
+
+# ---------- gui (Rust / cxx-qt + Qt6) ----------
+
+[tasks."build:gui"]
+description = "Build storey-gui with cargo (requires system Qt6)"
+run = "cargo build --manifest-path apps/gui/Cargo.toml"
+run_windows = "cargo build --manifest-path apps\\gui\\Cargo.toml"
+
+[tasks."build:gui-release"]
+description = "Release build of storey-gui (requires system Qt6)"
+run = "cargo build --release --manifest-path apps/gui/Cargo.toml"
+run_windows = "cargo build --release --manifest-path apps\\gui\\Cargo.toml"
+
+[tasks."test:gui"]
+description = "Test storey-gui with cargo"
+run = "cargo test --manifest-path apps/gui/Cargo.toml"
+run_windows = "cargo test --manifest-path apps\\gui\\Cargo.toml"
+
+[tasks."lint:gui"]
+description = "cargo fmt check + clippy for the GUI"
+run = "cargo fmt --manifest-path apps/gui/Cargo.toml -- --check && cargo clippy --manifest-path apps/gui/Cargo.toml -- -D warnings && sh scripts/check-limits.sh apps/gui"
+run_windows = "cargo fmt --manifest-path apps\\gui\\Cargo.toml -- --check && cargo clippy --manifest-path apps\\gui\\Cargo.toml -- -D warnings && sh scripts/check-limits.sh apps/gui"
+
+[tasks."dev:gui"]
+description = "Build the CLI, run the GUI against the fresh binary (needs Qt6 at build time)"
+depends = ["build:cli"]
+run = "cargo run --manifest-path apps/gui/Cargo.toml -- --storey-bin {{config_root}}/apps/cli/bin/storey"
+run_windows = "cargo run --manifest-path apps\\gui\\Cargo.toml -- --storey-bin {{config_root}}/apps/cli/bin/storey.exe"
+
+# ---------- packaging ----------
+
+[tasks."dist:cli"]
+description = "Cross-compile CLI for linux/windows/darwin (amd64+arm64) into dist/"
+run = "sh scripts/dist-cli.sh"
+run_windows = "echo dist:cli runs under sh (Git Bash) on Windows; run sh scripts/dist-cli.sh"
