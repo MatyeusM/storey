@@ -22,8 +22,11 @@ Single version source: repo-root `VERSION` (currently `0.1.0`). Release flow:
    - TUI: `mise run build:tui-release` per runner OS (native arch),
      shipping the CLI next door so the binary resolves it.
    - GUI: `mise run build:gui-release` per runner OS (Qt installed
-     per-OS in the workflow). The GUI links Qt dynamically, so the
-     binary needs system Qt6 (>= 6.6) at runtime too.
+     per-OS in the workflow). On Windows the needed Qt DLLs/QML
+     plugins are bundled next to the exe with `windeployqt`, so the
+     zip runs as-is (MSVC redist usually comes with Windows Update).
+     Linux/macOS link Qt dynamically: `apt install qt6-base`
+     (or similar) / `brew install qt`.
    - macOS runners are arm64, so `storey-macos.zip` mixes arm64 UI
      binaries with the amd64 CLI (Rosetta covers it).
 

@@ -100,7 +100,7 @@ sudo pacman -S qt6-base qt6-declarative
 # Ubuntu/Debian
 sudo apt install qt6-base-dev qt6-declarative-dev
 # macOS
-brew install qt@6
+brew install qt
 # Windows: install Qt 6 via the online installer or `winget install Qt.Qt.6`,
 # then ensure qmake is on PATH.
 ```

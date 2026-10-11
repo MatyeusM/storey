@@ -68,6 +68,19 @@ mise run lint         # cli + shared + tui + gui checks
 
 Per-app details: `apps/cli/README.md`, `apps/tui/README.md`, `apps/gui/README.md`.
 
+## Install a release
+
+Download `storey-<os>.zip` from the
+[releases](https://github.com/MatyeusM/storey/releases) page —
+each holds the `storey` CLI, `storey-tui`, and `storey-gui`:
+
+- **Linux**: needs system Qt6 for the GUI (`sudo apt install
+  qt6-base` or your distro's equivalent).
+- **macOS**: `brew install qt` for the GUI (the UI builds are
+  arm64; the bundled CLI is amd64 and runs under Rosetta).
+- **Windows**: runs as-is — the needed Qt libraries ship inside
+  the zip.
+
 ## Concept (from `.reference/`)
 
 Inside a managed library folder:

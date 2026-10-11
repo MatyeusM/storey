@@ -39,12 +39,12 @@ stage_cp tui-ubuntu-latest storey-tui "$stage/linux/storey-tui"
 stage_cp gui-ubuntu-latest storey-gui "$stage/linux/storey-gui"
 (cd "$stage/linux" && zip -q "$out_abs/storey-linux.zip" storey storey-tui storey-gui)
 
-# windows (amd64 throughout)
+# windows (amd64 throughout; GUI ships its Qt bundle)
 mkdir -p "$stage/windows"
 stage_cp cli-windows-amd64 storey.exe "$stage/windows/storey.exe"
 stage_cp tui-windows-latest storey-tui.exe "$stage/windows/storey-tui.exe"
-stage_cp gui-windows-latest storey-gui.exe "$stage/windows/storey-gui.exe"
-(cd "$stage/windows" && zip -q "$out_abs/storey-windows.zip" storey.exe storey-tui.exe storey-gui.exe)
+cp -r "$in/gui-windows-latest/." "$stage/windows/"
+(cd "$stage/windows" && zip -q -r "$out_abs/storey-windows.zip" .)
 
 # macos (TUI/GUI are arm64 runner builds; the CLI stays amd64)
 mkdir -p "$stage/macos"
