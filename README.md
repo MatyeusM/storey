@@ -1,6 +1,6 @@
 # storey
 
-https://github.com/MatyeusM/storey/raw/refs/heads/main/docs/demo.mp4
+![storey creating a view](docs/demo.gif)
 
 **In plain words:** imagine a folder full of movies, photos, or music
 with messy names. You stick a few labels on each file — who made it,
