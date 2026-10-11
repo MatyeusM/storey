@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- CI installs `rustfmt`/`clippy` into the active toolchain before
+  linting, so fresh runners no longer fail `lint:*` on missing
+  components.
+- Releases ship per-OS zips (`storey-linux.zip`,
+  `storey-windows.zip`, `storey-macos.zip`) instead of a flat,
+  colliding file list; the TUI artifact bundles its CLI again and
+  stray build files (`.d`) no longer upload.
+
 ## [0.1.0] - 2026-10-11
 
 ### Added

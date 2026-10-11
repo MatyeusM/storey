@@ -75,7 +75,9 @@ jobs:
       - uses: actions/upload-artifact@v7
         with:
           name: gui-${{ matrix.os }}
-          path: apps/gui/target/release/storey-gui*
+          path: |
+            apps/gui/target/release/storey-gui
+            apps/gui/target/release/storey-gui.exe
 
   publish:
     needs: [cli, tui, gui]
@@ -86,9 +88,9 @@ jobs:
       - uses: actions/download-artifact@v8
         with:
           path: dist-all
-          merge-multiple: true
-      - run: find dist-all -type f | sort | xargs sha256sum > dist-all/SHA256SUMS
+      - run: sh scripts/package-release.sh dist-all release
+      - run: cd release && sha256sum * > SHA256SUMS
       - uses: softprops/action-gh-release@v3
         with:
-          files: dist-all/*
+          files: release/*
           body_path: /tmp/notes.md

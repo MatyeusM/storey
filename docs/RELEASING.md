@@ -12,9 +12,11 @@ Single version source: repo-root `VERSION` (currently `0.1.0`). Release flow:
    `## [X.Y.Z] - YYYY-MM-DD` section in `CHANGELOG.md`.
 4. Commit, tag `vX.Y.Z`, push tag.
 5. `.github/workflows/release.yml` builds the matrix and publishes a GitHub
-   Release with artifacts + `SHA256SUMS`, using the new version
-   section as patch notes (`sh scripts/release-notes.sh` fails the
-   job instead of shipping empty notes, so step 3 is load-bearing):
+   Release with per-OS zips (`storey-linux.zip`, `storey-windows.zip`,
+   `storey-macos.zip`, each holding the three binaries) + `SHA256SUMS`,
+   using the new version section as patch notes
+   (`sh scripts/release-notes.sh` fails the job instead of shipping
+   empty notes, so step 3 is load-bearing):
    - CLI: `go build` for `linux`, `windows`, `darwin` (`amd64`;
      see `scripts/dist-cli.sh`).
    - TUI: `mise run build:tui-release` per runner OS (native arch),
@@ -22,6 +24,8 @@ Single version source: repo-root `VERSION` (currently `0.1.0`). Release flow:
    - GUI: `mise run build:gui-release` per runner OS (Qt installed
      per-OS in the workflow). The GUI links Qt dynamically, so the
      binary needs system Qt6 (>= 6.6) at runtime too.
+   - macOS runners are arm64, so `storey-macos.zip` mixes arm64 UI
+     binaries with the amd64 CLI (Rosetta covers it).
 
 `go build` stamps the version with
 `-ldflags "-X .../internal/version.Version=vX.Y.Z"`; the literal in
