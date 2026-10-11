@@ -10,7 +10,8 @@ get `2020/Nolan/movie.mkv`, `2020/Villeneuve/movie.mkv`, and so on.
 Change your mind about the grouping and the folders rebuild in
 seconds. Your files are never copied or duplicated — they rest safely
 in a hidden vault and are only *linked* into place, and every change
-can be undone.
+can be undone. And unlike media servers, it sorts whatever you can
+describe with labels — movies, music, photos, PDFs, documents.
 
 Content-addressable storage (CAS) that creates **file-manager-friendly views**
 of the CAS itself — for managing large file libraries.
