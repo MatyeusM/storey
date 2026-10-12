@@ -12,6 +12,8 @@ pub mod intake;
 pub mod library;
 pub mod lock;
 pub mod log;
+pub mod materialize;
+pub mod materialize_fs;
 pub mod ops;
 pub mod tags;
 pub mod views;

@@ -196,31 +196,20 @@ fn locked_write(
     cat: &str,
     op: impl FnOnce(&std::path::Path, &mut Index) -> Result<usize, WriteErr>,
 ) -> i32 {
-    let cwd = match std::env::current_dir() {
-        Ok(dir) => dir,
-        Err(e) => return fail(&format!("{e}")),
+    let mut opened = match crate::open_locked() {
+        Ok(o) => o,
+        Err(code) => return code,
     };
-    let root = match storey_core::library::find_root(&cwd) {
-        Ok(root) => root,
-        Err(e) => return usage_err(&format!("{e}")),
-    };
-    let _lock = match storey_core::lock::acquire(&root) {
-        Ok(guard) => guard,
-        Err(msg) => return fail(&msg),
-    };
-    let mut ix = match Index::load(&root) {
-        Ok(ix) => ix,
-        Err(e) => return fail(&format!("{e}")),
-    };
-    let idx = match op(&root, &mut ix) {
+    let root = opened.root.clone();
+    let idx = match op(&root, &mut opened.ix) {
         Ok(idx) => idx,
         Err(WriteErr::Usage(msg)) => return usage_err(&msg),
         Err(WriteErr::Abort) => return EXIT_FAILURE,
     };
-    if let Err(e) = ix.save(&root) {
+    if let Err(e) = opened.ix.save(&root) {
         return fail(&format!("{e}"));
     }
-    let rec = &ix.files[idx];
+    let rec = &opened.ix.files[idx];
     emit("tag", as_json, rec);
     if !as_json {
         if cat.is_empty() {

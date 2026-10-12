@@ -10,6 +10,8 @@ use storey_core::ops;
 
 mod cmd_intake;
 mod cmd_tag;
+mod cmd_view;
+mod cmd_view_report;
 
 /// Process exit codes.
 const EXIT_OK: i32 = 0;
@@ -53,6 +55,12 @@ enum Commands {
         #[arg(trailing_var_arg = true, allow_hyphen_values = true)]
         args: Vec<String>,
     },
+    /// Ingest into .files/, wipe, rebuild links, record key order.
+    View {
+        /// Raw arguments (--tags required, plus --force/--dry-run).
+        #[arg(trailing_var_arg = true, allow_hyphen_values = true)]
+        args: Vec<String>,
+    },
     /// All records, optionally one category=value filter or --untagged.
     List {
         /// Only records with no tags (excludes filters).
@@ -89,6 +97,7 @@ fn run() -> i32 {
         }
         Commands::Status => cmd_status(as_json, &logger),
         Commands::Tag { args } => cmd_tag::cmd_tag(args, as_json),
+        Commands::View { args } => cmd_view::cmd_view(args, as_json, &logger),
         Commands::List { untagged, filter } => cmd_list(as_json, *untagged, filter.as_deref()),
     }
 }
@@ -207,4 +216,47 @@ fn fail(msg: &str) -> i32 {
 fn usage_err(msg: &str) -> i32 {
     eprintln!("storey: {msg}");
     EXIT_USAGE
+}
+
+/// Trap Ctrl-C (plus SIGTERM on unix) into a flag the flows poll.
+fn trap_abort() -> std::sync::Arc<std::sync::atomic::AtomicBool> {
+    let abort = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
+    #[cfg(unix)]
+    for sig in [signal_hook::consts::SIGINT, signal_hook::consts::SIGTERM] {
+        let _ = signal_hook::flag::register(sig, std::sync::Arc::clone(&abort));
+    }
+    #[cfg(not(unix))]
+    let _ = signal_hook::flag::register(signal_hook::consts::SIGINT, std::sync::Arc::clone(&abort));
+    abort
+}
+
+/// Save a partial index after an abort (exit 130); the lock guard
+/// still drops on the way out.
+fn emergency_save(root: &std::path::Path, ix: &storey_core::index::Index) -> i32 {
+    match ix.save(root) {
+        Ok(()) => eprintln!("storey: interrupted, index saved"),
+        Err(e) => eprintln!("storey: interrupted: {e} (index may be stale)"),
+    }
+    130
+}
+
+/// Opened library: root, held lock, loaded index.
+struct Opened {
+    root: std::path::PathBuf,
+    _lock: storey_core::lock::Guard,
+    ix: storey_core::index::Index,
+}
+
+/// Resolve cwd, claim the lock, load the index. Failures print
+/// their own message and yield the exit code.
+fn open_locked() -> Result<Opened, i32> {
+    let cwd = std::env::current_dir().map_err(|e| fail(&format!("{e}")))?;
+    let root = storey_core::library::find_root(&cwd).map_err(|e| usage_err(&format!("{e}")))?;
+    let lock = storey_core::lock::acquire(&root).map_err(|msg| fail(&msg))?;
+    let ix = storey_core::index::Index::load(&root).map_err(|e| fail(&format!("{e}")))?;
+    Ok(Opened {
+        root,
+        _lock: lock,
+        ix,
+    })
 }
