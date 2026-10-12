@@ -1,9 +1,8 @@
-//! Explorer directory listing shared by TUI and GUI.
+//! Explorer directory listing for the GUI.
 //!
-//! Non-hidden children, dirs first, case-insensitive sort — the TUI
-//! `fs::list_dir` semantics — plus the GUI rule that the content
+//! Non-hidden children, dirs first, case-insensitive sort, plus the GUI rule that the content
 //! store is never visible: `.files/`, `.index.json`, and every other
-//! dotfile are skipped in both frontends.
+//! dotfile are skipped.
 
 use std::path::{Path, PathBuf};
 

@@ -1,6 +1,6 @@
 //! Plugin dialog invokables plus Qt-free row builders.
 //!
-//! Rows mirror the TUI health display; adding a plugin shallow-
+//! Rows show plugin health; adding a plugin shallow-
 //! clones the git url into the config plugins dir and records it
 //! in `ui.toml`.
 
@@ -13,7 +13,7 @@ use storey_shared::tags::TagSource;
 
 use crate::{store::ffi, support};
 
-/// One declared plugin with health info (mirrors the TUI rows).
+/// One declared plugin with health info.
 #[derive(Debug, Clone)]
 pub struct PluginRow {
     pub name: String,

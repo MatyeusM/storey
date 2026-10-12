@@ -7,7 +7,6 @@ dist/
 target/
 apps/cli/bin/
 apps/cli/*.exe
-apps/tui/target/
 apps/shared/target/
 apps/gui/target/
 *.o

@@ -2,9 +2,8 @@
 
 Storey ships **no built-in tag suggesters**. Every suggestion source is
 an external plugin — a program in any language that reads one record
-and prints suggested tags. Both UIs (`storey-tui`, `storey-gui`) query
-plugins through `storey-shared` (`apps/shared/src/tags.rs`) and merge
-the answers. A person or an LLM following this file can write, register,
+and prints suggested tags. The GUI (`storey-gui`) queries
+plugins through `storey-shared` (`apps/shared/src/tags.rs`). A person or an LLM following this file can write, register,
 and debug a plugin without reading the Rust code.
 
 ## Shapes: file or directory
@@ -36,7 +35,7 @@ plugins, or the executable's parent directory for file plugins.
 | Field | Required | Meaning |
 |---|---|---|
 | `name` | yes | Human name; shown in the UIs. |
-| `version` | no (default `""`) | Shown in the TUI Plugins view. |
+| `version` | no (default `""`) | Shown in the GUI Plugins dialog. |
 | `description` | no (default `""`) | Human blurb; not displayed yet. |
 | `entrypoint` | yes, non-empty | Program plus args (see below). |
 | `supported_extensions` | no (default `[]`) | **Documentary only** — it is parsed but never enforced. The effective filter is the `extensions` allow-list in `ui.toml`. |
@@ -134,7 +133,7 @@ plugin can open the file without knowing the library layout:
 - `score`: `0.0`–`1.0` confidence. Higher wins when two plugins suggest
   the same `category`+`value` pair (see Ranking).
 - `source`: free text naming where the hit came from (plugin name,
-  database, model). Shown in the TUI suggestion popup.
+  database, model). Shown in the GUI suggestion list.
 - `[]` is a valid answer: "no suggestions for this record".
 
 ### Failure rules
@@ -142,8 +141,8 @@ plugin can open the file without knowing the library layout:
 - Non-zero exit: all output is discarded and the lookup errors.
 - Invalid JSON on stdout: the lookup errors.
 - Overrunning `timeout_secs`: the child is killed, the lookup errors.
-- A failing plugin never blocks the others; the UIs skip it and keep
-  the rest. (The TUI reports "no suggestions" only when *nothing*
+- A failing plugin never blocks the others; the GUI skips it and keeps
+  the rest. (The GUI reports "no suggestions" only when *nothing*
   came back from *any* plugin.)
 
 ### Extension filtering (before spawning)
@@ -154,7 +153,7 @@ That counts as "no suggestions", not an error.
 
 ### Ranking and merge (`tags::rank`)
 
-The UIs concatenate every plugin's suggestions, sort by `score`
+The GUI concatenates every plugin's suggestions, sorts by `score`
 descending, and dedupe by (`category`, `value`), keeping the highest
 score. Applying suggestions writes them with `tag add` grouped by
 category — merges only, never clobbers existing values.
@@ -220,22 +219,14 @@ echo '{"id":"ab","displayName":"a.mkv","originalRel":"a.mkv","size":1,"tags":{}}
   | python3 ~/plugins/upper/suggest.py; echo "exit=$?"
 ```
 
-## How the UIs use plugins
+## How the GUI uses plugins
 
-- **TUI Detail view**: `s` runs `lookup` on every enabled plugin for
-  the focused record, ranks the results, and shows an accept popup
-  (`y` applies all via grouped `tag add`, `n`/`Esc` closes). Empty
-  results show a "no suggestions" notice instead of a popup.
-- **GUI tag editor**: `Suggest` runs the same lookup through
-  `storey-shared` and lists ranked suggestions under the editor;
-  `Apply all` merges them via grouped `tag add`. Plugin health and
-  the install dialog live in the GUI `Plugins` dialog instead of a
-  dedicated view.
-- **TUI Plugins view** (`P` from Detail): one row per `[[plugins]]`
-  declaration with health — `ok`, `missing binary` (program not
-  found), or the resolve error. `Enter` opens the plugin's folder
-  (the directory itself, or the parent directory for file plugins)
-  in the file browser. Health comes from `ExternalPlugin::from_decl`
+- **Tag editor**: `Suggest` runs `lookup` on every enabled plugin
+  through `storey-shared` and lists ranked suggestions under the
+  editor; `Apply all` merges them via grouped `tag add`.
+- **Plugins dialog**: one row per `[[plugins]]` declaration with
+  health — `ok`, `missing binary` (program not found), or the
+  resolve error. Health comes from `ExternalPlugin::from_decl`
   plus `available()`: a bare program name is assumed to be on `PATH`,
   while any path containing a separator must exist.
 

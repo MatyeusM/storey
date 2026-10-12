@@ -1,9 +1,9 @@
-//! Record filter shared by TUI and GUI: narrow by name, tags, or lack of tags.
+//! Record filter for the GUI: narrow by name, tags, or lack of tags.
 //!
-//! Pure matching over [`crate::model::Record`]; both frontends keep
-//! their own popup/panel chrome but share these semantics. Filtering
+//! Pure matching over [`crate::model::Record`]; the GUI keeps
+//! its own panel chrome. Filtering
 //! is live — every keystroke re-narrows — and `Untagged` ignores the
-//! query. Extracted from `apps/tui/src/filter.rs`.
+//! query.
 
 use crate::model::Record;
 
@@ -20,7 +20,7 @@ pub enum FilterKind {
 }
 
 impl FilterKind {
-    /// Parse the GUI/TUI kind name; unknown yields filename.
+    /// Parse the GUI kind name; unknown yields filename.
     pub fn parse(s: &str) -> Self {
         match s.trim().to_lowercase().as_str() {
             "tags" | "tag" => Self::Tags,

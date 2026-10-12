@@ -1,6 +1,6 @@
 # storey (CLI)
 
-Go CLI. Source of truth for CAS + index + views. TUI/GUI shell out to the
+Go CLI. Source of truth for CAS + index + views. The GUI shells out to the
 `storey` binary — no shared libraries.
 
 Implemented: `init` (creates only `.index.json`, adopts nested

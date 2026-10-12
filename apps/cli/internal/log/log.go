@@ -1,7 +1,7 @@
 // Package log provides stderr diagnostics for the CLI. Stdout stays
 // reserved for the --json envelope, so everything here goes to stderr:
 // human-readable text by default, one JSON object per line under --json
-// so the TUI and GUI can consume progress and warnings as a stream.
+// so the GUI can consume progress and warnings as a stream.
 package log
 
 import (

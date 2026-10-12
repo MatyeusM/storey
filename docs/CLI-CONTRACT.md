@@ -1,6 +1,6 @@
 # CLI contract (v0.2 draft — decided, implemented)
 
-`storey` owns all CAS/index/view logic. The TUI and GUI drive it as a
+`storey` owns all CAS/index/view logic. The GUI drives it as a
 subprocess using `--json` output. This file pins the command surface.
 
 ## Library layout (locked)
@@ -52,14 +52,14 @@ subprocess using `--json` output. This file pins the command surface.
 - Logging: everything except the `--json` envelope goes to stderr.
   Human mode prints `storey: ...` lines (`warning:` prefix for warnings),
   including one progress line per hashed file. Under `--json`, stderr
-  is JSONL for TUI/GUI consumption: `{"level":"info","msg":"..."}`,
+  is JSONL for GUI consumption: `{"level":"info","msg":"..."}`,
   `{"level":"warn","msg":"..."}`, and hashing progress
   `{"level":"progress","op":"hash"|"verify","done":n,"total":m,"path":"..."}`.
   `--quiet` suppresses info and progress lines (warnings still print).
 - Exit codes: `0` ok (including empty `list`), `2` usage / no library,
   `1` runtime failure, `130` interrupted (the index is saved first).
 - Never interactive: storey never prompts and never reads stdin. Command
-  it, it does — TUI/GUI drive it as a subprocess, so every command must
+  it, it does — the GUI drives it as a subprocess, so every command must
   be fully determined by its flags. `--dry-run` previews without mutating.
 
 ## Tag and category names

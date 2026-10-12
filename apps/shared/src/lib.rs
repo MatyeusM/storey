@@ -1,6 +1,6 @@
-//! storey-shared: common UI layer for `storey-tui` and `storey-gui`.
+//! storey-shared: common UI layer for `storey-gui`.
 //!
-//! Both frontends drive the `storey` CLI as a subprocess (see
+//! The GUI drives the `storey` CLI as a subprocess (see
 //! `docs/CLI-CONTRACT.md`) and never touch the store or index directly.
 //! This crate holds what they share:
 //!
@@ -19,7 +19,7 @@
 //! - [`theme`]: GUI design tokens ([`theme::GuiTheme`] defaults plus
 //!   [`theme::GuiOverrides`] from `[gui]`).
 //! - [`explore`]: explorer directory listing (dirs first, dotfiles
-//!   and `.files/` hidden) shared by the TUI browser and GUI.
+//!   and `.files/` hidden) used by the GUI browser.
 //! - [`filter`]: live record narrowing by name, tags, or lack of tags.
 //! - [`manifest`]: plugin `manifest.json` for directory plugins
 //!   (entrypoint, supported extensions, protocol check).

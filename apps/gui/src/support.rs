@@ -151,7 +151,7 @@ mod tests {
     }
 
     #[test]
-    fn values_split_like_tui() {
+    fn values_split() {
         assert_eq!(split_values("a, b,, c "), vec!["a", "b", "c"]);
         assert!(split_values(" , ").is_empty());
     }

@@ -1,8 +1,8 @@
 # Architecture (reimplementation plan)
 
 Reference: `.reference/` (Java+ Swing `Clanker Sort`). Do not port it
-line-for-line — reimplement the concept in Go (CLI) with thin Rust UI
-clients sharing one subprocess-driving library. This doc records
+line-for-line — reimplement the concept in Go (CLI) with a thin Rust UI
+client sharing one subprocess-driving library. This doc records
 decisions; items below are **locked** once implemented.
 
 ## Concept
@@ -29,15 +29,15 @@ A managed library folder contains:
   filename validation, OS open helpers. Hashing runs on a worker pool
   (NumCPU-1, one core left for UI/OS) and reports progress on stderr
   (human text, or JSONL under `--json`) for the UIs to consume.
-- `storey-tui` (Rust/ratatui) and `storey-gui` (Rust/cxx-qt) are
-  **thin clients**: they invoke `storey` as a subprocess, parse its
-  machine-readable output, and never touch the store or index directly.
-  Both build on `storey-shared`, a common Rust library for driving the
+- `storey-gui` (Rust/cxx-qt) is a
+  **thin client**: it invokes `storey` as a subprocess, parses its
+  machine-readable output, and never touches the store or index directly.
+  It builds on `storey-shared`, a common Rust library for driving the
   CLI (envelope + JSONL log parsing), index types, and future tag
   sources (e.g. MusicBrainz lookups).
 - The subprocess contract (args, stdout JSON schema, stderr log schema,
   exit codes) is specified in `CLI-CONTRACT.md` and is the only
-  coupling between the CLI and the UIs. TUI/GUI must accept a
+  coupling between the CLI and the GUI. The GUI must accept a
   `--storey-bin` override for testing and for distro packaging edge
   cases.
 
@@ -78,7 +78,7 @@ A managed library folder contains:
       a pre-move probe.
 - [x] Rescan problems → report-only, exit 1 when problems exist.
 - [x] Hashing → Go worker pool, NumCPU-1 (one core left for UI/OS); progress as JSONL events
-      on stderr for TUI/GUI, streamed live (never batched at exit).
+      on stderr for GUI consumption, streamed live (never batched at exit).
       Unreadable files are report-only problems, never fatal.
 - [x] Scan hygiene → the walk skips OS junk (`.DS_Store`,
       `Thumbs.db`, `desktop.ini`) and partial downloads (`.part`,

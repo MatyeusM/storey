@@ -1,6 +1,6 @@
 # storey-shared
 
-Rust library shared by `storey-tui` and `storey-gui`. Both UIs drive
+Rust library backing `storey-gui`. The GUI drives
 the `storey` CLI as a subprocess and never touch the store or index
 directly — this crate holds what they share (see
 `docs/CLI-CONTRACT.md`):

@@ -1,6 +1,6 @@
 name: release
 
-# Tag vX.Y.Z -> build all three apps per OS -> GitHub Release with checksums.
+# Tag vX.Y.Z -> build both apps per OS -> GitHub Release with checksums.
 # Patch notes come from CHANGELOG.md via scripts/release-notes.sh.
 on:
   push:
@@ -33,24 +33,6 @@ jobs:
         with:
           name: cli-${{ matrix.goos }}-${{ matrix.goarch }}
           path: dist/
-
-  tui:
-    strategy:
-      matrix:
-        os: [ubuntu-latest, windows-latest, macos-latest]
-    runs-on: ${{ matrix.os }}
-    steps:
-      - uses: actions/checkout@v7
-      - uses: jdx/mise-action@v5
-      - run: mise run build:tui-release
-      - uses: actions/upload-artifact@v7
-        with:
-          name: tui-${{ matrix.os }}
-          path: |
-            apps/tui/target/release/storey-tui
-            apps/tui/target/release/storey-tui.exe
-            apps/tui/target/release/storey
-            apps/tui/target/release/storey.exe
 
   gui:
     strategy:
@@ -89,7 +71,7 @@ jobs:
             staging/gui-windows/
 
   publish:
-    needs: [cli, tui, gui]
+    needs: [cli, gui]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7

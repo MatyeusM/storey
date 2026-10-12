@@ -229,7 +229,7 @@ pub(crate) fn send_tick(
     });
 }
 
-/// TUI-style progress label plus a fraction (-1 when unknown).
+/// Compact progress label plus a fraction (-1 when unknown).
 fn progress_parts(op: &str, done: u64, total: Option<u64>) -> (String, f64) {
     match total {
         Some(t) if t > 0 => {

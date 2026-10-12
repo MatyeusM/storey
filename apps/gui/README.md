@@ -116,5 +116,5 @@ mise run lint:gui           # fmt check + clippy
 ```
 
 `storey-gui [PATH] [--storey-bin BIN]`: binary resolution is flag,
-then `ui.toml`, then a sibling `storey`, then PATH (same as the TUI).
+then `ui.toml`, then a sibling `storey`, then PATH.
 Version: `Cargo.toml` `version` must match repo-root `VERSION`.
