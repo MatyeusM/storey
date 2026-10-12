@@ -24,7 +24,8 @@ verbatim; reimplement per `docs/ARCHITECTURE.md`).
 | App | Dir | Stack | Role |
 | --- | --- | ----- | ---- |
 | `storey` | `apps/cli` | Go | CLI. Source of truth: CAS + index + views. GUI shells out to it. |
-| `storey-shared` | `apps/shared` | Rust (lib) | Common UI layer: CLI subprocess driver, log parsing, index types. |
+| `storey-shared` | `crates/storey-shared` | Rust (lib) | Common UI layer: CLI subprocess driver, log parsing, index types. |
+| `storey-core` | `crates/storey-core` | Rust (lib) | CLI logic: index, hashing, views, adoption. |
 | `storey-gui` | `apps/gui` | Rust + cxx-qt (Qt6) | Graphical interface. Thin client over the CLI. |
 
 ## Layout
@@ -32,7 +33,7 @@ verbatim; reimplement per `docs/ARCHITECTURE.md`).
 ```text
 .
 ├── apps/cli/        # Go module github.com/matyeusm/storey — `storey` binary
-├── apps/shared/     # Rust lib `storey-shared` — common GUI layer over the CLI
+├── crates/            # Rust libs (`storey-shared` GUI layer, `storey-core` CLI logic)
 ├── apps/gui/        # Rust crate + cxx-qt — `storey-gui` binary (Qt6)
 ├── docs/            # architecture, CLI contract, plugins, releasing
 ├── scripts/         # dist helper script + size-limit check (sh, cross-platform)

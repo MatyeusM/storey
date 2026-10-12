@@ -4,12 +4,13 @@
 
 - mise-first: `mise install` once, then `mise run build|test|lint` (per-app: `build:cli`, `test:shared`, `lint:gui`, ...). mise provides Go + Rust (`latest`); **Qt6 (>= 6.6) is a system dep** for the GUI (`qt6-base` + `qt6-declarative`), found at build time via `qmake`.
 - Task bodies must stay single-tool invocations with `run_windows` overrides — no implementation in `mise.toml`.
-- Single version source: repo-root `VERSION`; keep in sync with `apps/cli/internal/version/version.go`, `apps/shared/Cargo.toml`, `apps/gui/Cargo.toml` (see `docs/RELEASING.md`).
+- Single version source: repo-root `VERSION`; keep in sync with `apps/cli/internal/version/version.go`, `crates/storey-shared/Cargo.toml`, `apps/gui/Cargo.toml` (see `docs/RELEASING.md`).
 
 ## Layout
 
 - `apps/cli` (Go, stdlib only): source of truth — CAS + index + views. Entrypoint `cmd/storey/`; packages `internal/{index,library,hash,adopt,views,log}`.
-- `apps/shared` (Rust lib `storey-shared`): common GUI layer — CLI subprocess driver, log parsing, record model, tag sources.
+- `crates/storey-shared` (Rust lib `storey-shared`): common GUI layer — CLI subprocess driver, log parsing, record model, tag sources.
+- `crates/storey-core` (Rust lib `storey-core`): CLI logic — index, hashing, views, adoption (port of the Go CLI internals).
 - `apps/gui` (Rust/cxx-qt 0.10): thin client. It shells out to `storey --json` and **never touches the store or index directly**.
 - `.reference/` is a behavioral reference only — do not copy from it verbatim.
 - Rust crates are standalone (no workspace); each `Cargo.lock` is committed. Always pass `--manifest-path apps/<crate>/Cargo.toml` from the repo root.
@@ -40,4 +41,4 @@
 ## Rust rules
 
 - `cargo fmt -- --check` and `cargo clippy -- -D warnings` must pass per crate (wired into `lint:*` tasks); run `mise run fmt` to fix.
-- Focused test: `cargo test --manifest-path apps/shared/Cargo.toml <name>`.
+- Focused test: `cargo test --manifest-path crates/storey-shared/Cargo.toml <name>`.

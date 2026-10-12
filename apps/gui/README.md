@@ -2,7 +2,7 @@
 
 Rust + cxx-qt (Qt6) graphical interface. Thin client over the `storey`
 CLI binary — all CAS/index/view logic stays in `apps/cli`; the GUI
-shells out to it through `apps/shared` (see `docs/CLI-CONTRACT.md`).
+shells out to it through `crates/storey-shared` (see `docs/CLI-CONTRACT.md`).
 
 Win11-style explorer: an icon-only top bar (init outside libraries,
 rescan inside; up; `/Name` + Files|Folders toggle + view-tag

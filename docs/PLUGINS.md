@@ -3,7 +3,7 @@
 Storey ships **no built-in tag suggesters**. Every suggestion source is
 an external plugin — a program in any language that reads one record
 and prints suggested tags. The GUI (`storey-gui`) queries
-plugins through `storey-shared` (`apps/shared/src/tags.rs`). A person or an LLM following this file can write, register,
+plugins through `storey-shared` (`crates/storey-shared/src/tags.rs`). A person or an LLM following this file can write, register,
 and debug a plugin without reading the Rust code.
 
 ## Shapes: file or directory
