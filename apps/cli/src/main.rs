@@ -8,6 +8,8 @@
 use clap::{Parser, Subcommand};
 use storey_core::ops;
 
+mod cmd_intake;
+
 /// Process exit codes.
 const EXIT_OK: i32 = 0;
 const EXIT_FAILURE: i32 = 1;
@@ -33,6 +35,21 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Commands {
+    /// Create .index.json here, adopt nested libraries, hash in place.
+    Init {
+        /// Preview without adopting, writing, or deleting.
+        #[arg(long)]
+        dry_run: bool,
+    },
+    /// Fold nested libraries, hash new files, optionally re-verify.
+    Update {
+        /// Re-hash every indexed path.
+        #[arg(long)]
+        verify: bool,
+        /// Preview without adopting, writing, or deleting.
+        #[arg(long)]
+        dry_run: bool,
+    },
     /// Read-only overview: root, counts, pending files, view order.
     Status,
     /// All records, optionally one category=value filter or --untagged.
@@ -53,6 +70,10 @@ fn run() -> i32 {
     let cli = Cli::try_parse().unwrap_or_else(|e| e.exit());
     let logger = storey_core::log::Logger::new(cli.json, cli.quiet);
     match &cli.command {
+        Commands::Init { dry_run } => cmd_intake::cmd_init(cli.json, *dry_run, &logger),
+        Commands::Update { verify, dry_run } => {
+            cmd_intake::cmd_update(cli.json, *verify, *dry_run, &logger)
+        }
         Commands::Status => cmd_status(cli.json, &logger),
         Commands::List { untagged, filter } => cmd_list(cli.json, *untagged, filter.as_deref()),
     }

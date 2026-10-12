@@ -14,3 +14,4 @@ storey-core = { path = "../../crates/storey-core" }
 clap = { version = "4", features = ["derive"] }
 serde = { version = "1" }
 serde_json = "1"
+signal-hook = "0.3"
