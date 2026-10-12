@@ -9,6 +9,7 @@ use clap::{Parser, Subcommand};
 use storey_core::ops;
 
 mod cmd_intake;
+mod cmd_tag;
 
 /// Process exit codes.
 const EXIT_OK: i32 = 0;
@@ -23,12 +24,6 @@ const EXIT_USAGE: i32 = 2;
     about = "CAS with file-manager-friendly views"
 )]
 struct Cli {
-    /// Machine-readable stdout envelope; logs go to stderr as JSONL.
-    #[arg(long, global = true)]
-    json: bool,
-    /// Suppress info and progress lines (warnings still print).
-    #[arg(long, short = 'q', global = true)]
-    quiet: bool,
     #[command(subcommand)]
     command: Commands,
 }
@@ -52,6 +47,12 @@ enum Commands {
     },
     /// Read-only overview: root, counts, pending files, view order.
     Status,
+    /// Tag reads and writes (get, set, add, remove).
+    Tag {
+        /// Subcommand plus its raw arguments.
+        #[arg(trailing_var_arg = true, allow_hyphen_values = true)]
+        args: Vec<String>,
+    },
     /// All records, optionally one category=value filter or --untagged.
     List {
         /// Only records with no tags (excludes filters).
@@ -67,15 +68,28 @@ fn main() {
 }
 
 fn run() -> i32 {
-    let cli = Cli::try_parse().unwrap_or_else(|e| e.exit());
-    let logger = storey_core::log::Logger::new(cli.json, cli.quiet);
-    match &cli.command {
-        Commands::Init { dry_run } => cmd_intake::cmd_init(cli.json, *dry_run, &logger),
-        Commands::Update { verify, dry_run } => {
-            cmd_intake::cmd_update(cli.json, *verify, *dry_run, &logger)
+    // Float --json/--quiet wherever they appear (mirrors the
+    // reference CLI): no command accepts these positionally.
+    let mut as_json = false;
+    let mut quiet = false;
+    let mut rest = vec!["storey".to_string()];
+    for a in std::env::args().skip(1) {
+        match a.as_str() {
+            "--json" => as_json = true,
+            "--quiet" | "-q" => quiet = true,
+            _ => rest.push(a),
         }
-        Commands::Status => cmd_status(cli.json, &logger),
-        Commands::List { untagged, filter } => cmd_list(cli.json, *untagged, filter.as_deref()),
+    }
+    let cli = Cli::try_parse_from(rest).unwrap_or_else(|e| e.exit());
+    let logger = storey_core::log::Logger::new(as_json, quiet);
+    match &cli.command {
+        Commands::Init { dry_run } => cmd_intake::cmd_init(as_json, *dry_run, &logger),
+        Commands::Update { verify, dry_run } => {
+            cmd_intake::cmd_update(as_json, *verify, *dry_run, &logger)
+        }
+        Commands::Status => cmd_status(as_json, &logger),
+        Commands::Tag { args } => cmd_tag::cmd_tag(args, as_json),
+        Commands::List { untagged, filter } => cmd_list(as_json, *untagged, filter.as_deref()),
     }
 }
 

@@ -13,4 +13,5 @@ pub mod library;
 pub mod lock;
 pub mod log;
 pub mod ops;
+pub mod tags;
 pub mod views;
