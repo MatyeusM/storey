@@ -24,6 +24,7 @@ verbatim; reimplement per `docs/ARCHITECTURE.md`).
 | App | Dir | Stack | Role |
 | --- | --- | ----- | ---- |
 | `storey` | `cli_go` | Go | Reference CLI (source of truth during the Rust port). GUI shells out to it. |
+| `storey` | `apps/cli` | Rust | New CLI over `storey-core` (port in progress: `status`, `list`). |
 | `storey-shared` | `crates/storey-shared` | Rust (lib) | Common UI layer: CLI subprocess driver, log parsing, index types. |
 | `storey-core` | `crates/storey-core` | Rust (lib) | CLI logic: index, hashing, views, adoption. |
 | `storey-gui` | `apps/gui` | Rust + cxx-qt (Qt6) | Graphical interface. Thin client over the CLI. |

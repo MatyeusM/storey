@@ -108,6 +108,25 @@ fn extension(base: &str) -> &str {
     }
 }
 
+/// Derived view link paths as a set (empty when no view was ever
+/// materialized, so plain filenames are never misclassified).
+pub fn plan_set(records: &[Record], by: &[String]) -> HashSet<String> {
+    if by.is_empty() {
+        return HashSet::new();
+    }
+    plan(
+        &records
+            .iter()
+            .filter(|r| r.stored())
+            .cloned()
+            .collect::<Vec<_>>(),
+        by,
+    )
+    .into_iter()
+    .map(|l| l.view_path)
+    .collect()
+}
+
 /// Store object name for display: display itself, or `stem_N.ext`
 /// while the name is taken by different content. `taken` maps store
 /// basename to id.

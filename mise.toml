@@ -19,47 +19,64 @@ depends = ["build:cli", "build:gui"]
 
 [tasks.test]
 description = "Test all apps (cli + shared + gui)"
-depends = ["test:cli", "test:core", "test:shared", "test:gui"]
+depends = ["test:cli", "test:cli-go", "test:core", "test:shared", "test:gui"]
 
 [tasks.lint]
 description = "Lint all apps"
-depends = ["lint:cli", "lint:core", "lint:shared", "lint:gui"]
+depends = ["lint:cli", "lint:cli-go", "lint:core", "lint:shared", "lint:gui"]
 
 [tasks.fmt]
 description = "Format Go + Rust sources"
-run = "gofmt -w cli_go && cargo fmt --manifest-path crates/storey-core/Cargo.toml && cargo fmt --manifest-path crates/storey-shared/Cargo.toml && cargo fmt --manifest-path apps/gui/Cargo.toml"
-run_windows = "gofmt -w cli_go && cargo fmt --manifest-path crates\\storey-core\\Cargo.toml && cargo fmt --manifest-path crates\\storey-shared\\Cargo.toml && cargo fmt --manifest-path apps\\gui\\Cargo.toml"
+run = "gofmt -w cli_go && cargo fmt --manifest-path apps/cli/Cargo.toml && cargo fmt --manifest-path crates/storey-core/Cargo.toml && cargo fmt --manifest-path crates/storey-shared/Cargo.toml && cargo fmt --manifest-path apps/gui/Cargo.toml"
+run_windows = "gofmt -w cli_go && cargo fmt --manifest-path apps\\cli\\Cargo.toml && cargo fmt --manifest-path crates\\storey-core\\Cargo.toml && cargo fmt --manifest-path crates\\storey-shared\\Cargo.toml && cargo fmt --manifest-path apps\\gui\\Cargo.toml"
 
 [tasks.clean]
 description = "Remove build outputs"
-run = "rm -rf build dist cli_go/bin crates/storey-shared/target crates/storey-core/target apps/gui/target"
+run = "rm -rf build dist cli_go/bin apps/cli/target crates/storey-shared/target crates/storey-core/target apps/gui/target"
 run_windows = "if exist build rmdir /s /q build & if exist dist rmdir /s /q dist"
 
 [tasks.dev]
 description = "Print dev entrypoints"
 run = "echo \"cli: mise run dev:cli | gui: mise run dev:gui\""
 
-# ---------- cli (Go) ----------
+# ---------- cli (Rust binary over storey-core) ----------
 
 [tasks."build:cli"]
-description = "Build storey CLI with plain go build (no downloads beyond modules)"
-run = "go -C cli_go build -o bin/storey ./cmd/storey"
-run_windows = "go -C cli_go build -o bin\\storey.exe .\\cmd\\storey"
+description = "Build storey CLI with cargo"
+run = "cargo build --manifest-path apps/cli/Cargo.toml"
+run_windows = "cargo build --manifest-path apps\\cli\\Cargo.toml"
 
 [tasks."test:cli"]
-description = "Vet + test the CLI"
-run = "go -C cli_go vet ./... && go -C cli_go test ./..."
-run_windows = "go -C cli_go vet ./... && go -C cli_go test ./..."
+description = "Test storey CLI with cargo"
+run = "cargo test --manifest-path apps/cli/Cargo.toml"
+run_windows = "cargo test --manifest-path apps\\cli\\Cargo.toml"
 
 [tasks."lint:cli"]
-description = "gofmt check + go vet + size limits for the CLI"
-run = "gofmt -l cli_go && go -C cli_go vet ./... && sh scripts/check-limits.sh cli_go"
-run_windows = "gofmt -l cli_go && go -C cli_go vet ./... && sh scripts/check-limits.sh cli_go"
+description = "cargo fmt check + clippy for the CLI"
+run = "cargo fmt --manifest-path apps/cli/Cargo.toml -- --check && cargo clippy --manifest-path apps/cli/Cargo.toml -- -D warnings && sh scripts/check-limits.sh apps/cli"
+run_windows = "cargo fmt --manifest-path apps\\cli\\Cargo.toml -- --check && cargo clippy --manifest-path apps\\cli\\Cargo.toml -- -D warnings && sh scripts/check-limits.sh apps/cli"
 
 [tasks."dev:cli"]
 description = "Run the CLI from source"
-run = "go -C cli_go run ./cmd/storey --help"
-run_windows = "go -C cli_go run .\\cmd\\storey --help"
+run = "cargo run --manifest-path apps/cli/Cargo.toml -- --help"
+run_windows = "cargo run --manifest-path apps\\cli\\Cargo.toml -- --help"
+
+# ---------- cli-go (Go reference, deleted at parity) ----------
+
+[tasks."build:cli-go"]
+description = "Build reference Go CLI (contract comparison only)"
+run = "go -C cli_go build -o bin/storey ./cmd/storey"
+run_windows = "go -C cli_go build -o bin\\storey.exe .\\cmd\\storey"
+
+[tasks."test:cli-go"]
+description = "Vet + test the reference Go CLI"
+run = "go -C cli_go vet ./... && go -C cli_go test ./..."
+run_windows = "go -C cli_go vet ./... && go -C cli_go test ./..."
+
+[tasks."lint:cli-go"]
+description = "gofmt check + go vet + size limits for the reference CLI"
+run = "gofmt -l cli_go && go -C cli_go vet ./... && sh scripts/check-limits.sh cli_go"
+run_windows = "gofmt -l cli_go && go -C cli_go vet ./... && sh scripts/check-limits.sh cli_go"
 
 # ---------- crates (Rust libs) ----------
 
