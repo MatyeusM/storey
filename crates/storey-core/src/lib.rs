@@ -5,9 +5,12 @@
 //! owns argument parsing and process wiring.
 
 pub mod adopt;
+pub mod flows;
 pub mod hash;
 pub mod index;
+pub mod intake;
 pub mod library;
+pub mod lock;
 pub mod log;
 pub mod ops;
 pub mod views;

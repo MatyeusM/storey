@@ -143,12 +143,11 @@ fn hash_sub_records(
         .collect();
     let abs: Vec<PathBuf> = rels.iter().map(|r| sub_abs.join(from_slash(r))).collect();
     let out = hash::files(&abs, hash::workers(), |done, total, path| {
-        let rel = path.strip_prefix(sub_abs).map(slash).unwrap_or_default();
-        logger.progress("hash", done, total, &rel);
+        logger.progress("hash", done, total, &crate::intake::rel_of(sub_abs, path));
     });
     out.into_iter()
         .map(|o| {
-            let rel = o.path.strip_prefix(sub_abs).map(slash).unwrap_or_default();
+            let rel = crate::intake::rel_of(sub_abs, &o.path);
             (rel, o)
         })
         .collect()
