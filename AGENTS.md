@@ -4,11 +4,12 @@
 
 - mise-first: `mise install` once, then `mise run build|test|lint` (per-app: `build:cli`, `test:shared`, `lint:gui`, ...). mise provides Go + Rust (`latest`); **Qt6 (>= 6.6) is a system dep** for the GUI (`qt6-base` + `qt6-declarative`), found at build time via `qmake`.
 - Task bodies must stay single-tool invocations with `run_windows` overrides — no implementation in `mise.toml`.
-- Single version source: repo-root `VERSION`; keep in sync with `apps/cli/internal/version/version.go`, `crates/storey-shared/Cargo.toml`, `apps/gui/Cargo.toml` (see `docs/RELEASING.md`).
+- Single version source: repo-root `VERSION`; keep in sync with `cli_go/internal/version/version.go`, `crates/storey-shared/Cargo.toml`, `apps/gui/Cargo.toml` (see `docs/RELEASING.md`).
 
 ## Layout
 
-- `apps/cli` (Go, stdlib only): source of truth — CAS + index + views. Entrypoint `cmd/storey/`; packages `internal/{index,library,hash,adopt,views,log}`.
+- `cli_go` (Go reference, stdlib only): behavioral source of truth — CAS + index + views. Being ported to `crates/storey-core` + Rust `apps/cli`; delete once the user signs off on parity.
+- `apps/cli` (reserved): future Rust CLI binary over `storey-core`.
 - `crates/storey-shared` (Rust lib `storey-shared`): common GUI layer — CLI subprocess driver, log parsing, record model, tag sources.
 - `crates/storey-core` (Rust lib `storey-core`): CLI logic — index, hashing, views, adoption (port of the Go CLI internals).
 - `apps/gui` (Rust/cxx-qt 0.10): thin client. It shells out to `storey --json` and **never touches the store or index directly**.
@@ -35,7 +36,7 @@
 ## Go rules
 
 - Stdlib only (no third-party dependencies).
-- Verify with `go -C apps/cli vet ./... && go -C apps/cli test ./...`; focused: `go -C apps/cli test ./internal/index/ -run TestLoad -v`.
+- Verify with `go -C cli_go vet ./... && go -C cli_go test ./...`; focused: `go -C cli_go test ./internal/index/ -run TestLoad -v`.
 - Tests use `chdir(t, root)` + `mustRun(t, ...)` helpers (`cmd/storey/*_test.go`); use `testLogger()` (quiet) for direct `cmdX` calls so progress output doesn't pollute test logs.
 
 ## Rust rules

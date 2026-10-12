@@ -12,7 +12,7 @@ for os in linux windows darwin; do
   dest="$out/$os-amd64/$bin"
   mkdir -p "$(dirname "$dest")"
   echo "building $os/amd64 -> $dest"
-  GOOS="$os" GOARCH=amd64 go -C apps/cli build \
+  GOOS="$os" GOARCH=amd64 go -C cli_go build \
     -ldflags "-X github.com/matyeusm/storey/internal/version.Version=$ver" \
     -o "../../$dest" ./cmd/storey
 done

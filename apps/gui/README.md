@@ -1,7 +1,7 @@
 # storey-gui
 
 Rust + cxx-qt (Qt6) graphical interface. Thin client over the `storey`
-CLI binary — all CAS/index/view logic stays in `apps/cli`; the GUI
+CLI binary — all CAS/index/view logic stays in `cli_go` (Go reference; Rust port in progress); the GUI
 shells out to it through `crates/storey-shared` (see `docs/CLI-CONTRACT.md`).
 
 Win11-style explorer: an icon-only top bar (init outside libraries,

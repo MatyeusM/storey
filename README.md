@@ -23,7 +23,7 @@ verbatim; reimplement per `docs/ARCHITECTURE.md`).
 
 | App | Dir | Stack | Role |
 | --- | --- | ----- | ---- |
-| `storey` | `apps/cli` | Go | CLI. Source of truth: CAS + index + views. GUI shells out to it. |
+| `storey` | `cli_go` | Go | Reference CLI (source of truth during the Rust port). GUI shells out to it. |
 | `storey-shared` | `crates/storey-shared` | Rust (lib) | Common UI layer: CLI subprocess driver, log parsing, index types. |
 | `storey-core` | `crates/storey-core` | Rust (lib) | CLI logic: index, hashing, views, adoption. |
 | `storey-gui` | `apps/gui` | Rust + cxx-qt (Qt6) | Graphical interface. Thin client over the CLI. |
@@ -32,7 +32,7 @@ verbatim; reimplement per `docs/ARCHITECTURE.md`).
 
 ```text
 .
-├── apps/cli/        # Go module github.com/matyeusm/storey — `storey` binary
+├── cli_go/          # Go reference CLI (deleted at parity) — `storey` binary
 ├── crates/            # Rust libs (`storey-shared` GUI layer, `storey-core` CLI logic)
 ├── apps/gui/        # Rust crate + cxx-qt — `storey-gui` binary (Qt6)
 ├── docs/            # architecture, CLI contract, plugins, releasing
@@ -57,14 +57,14 @@ verbatim; reimplement per `docs/ARCHITECTURE.md`).
 
 ```sh
 mise install          # one-time toolchain install
-mise run build:cli    # Go CLI -> apps/cli/bin/storey
+mise run build:cli    # Go reference CLI -> cli_go/bin/storey
 mise run build:gui    # Qt GUI (needs system Qt6)
 mise run build        # all
 mise run test         # cli + shared + gui suites
 mise run lint         # cli + shared + gui checks
 ```
 
-Per-app details: `apps/cli/README.md`, `apps/gui/README.md`.
+Per-app details: `cli_go/README.md`, `apps/gui/README.md`.
 
 ## Install a release
 
@@ -119,7 +119,7 @@ All task bodies are single-tool invocations (`&&`-chained) with
   matrix), GUI
   (`mise run build:gui-release` per OS with Qt installed per-OS),
   uploads artifacts + `SHA256SUMS` to a GitHub Release.
-- `VERSION` file + per-app version sources (`apps/cli/internal/version`,
+- `VERSION` file + per-app version sources (`cli_go/internal/version`,
   `apps/gui/Cargo.toml`) must agree — see
   `docs/RELEASING.md`.
 

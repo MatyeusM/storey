@@ -6,4 +6,5 @@
 
 pub mod hash;
 pub mod index;
+pub mod library;
 pub mod log;
