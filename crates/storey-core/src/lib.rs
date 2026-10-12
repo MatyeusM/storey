@@ -4,6 +4,7 @@
 //! `docs/CLI-CONTRACT.md`. This crate owns the mechanics; `apps/cli`
 //! owns argument parsing and process wiring.
 
+pub mod adopt;
 pub mod hash;
 pub mod index;
 pub mod library;

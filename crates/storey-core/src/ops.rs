@@ -27,7 +27,7 @@ pub fn status_at(root: &Path) -> Result<StatusReport> {
     let ix = Index::load(root)?;
     let tracked = library::current_locations(&ix.files);
     let artifacts = views::plan_set(&ix.files, &ix.view.by);
-    let untracked = library::find_untracked(&root, &tracked, &artifacts)?;
+    let untracked = library::find_untracked(root, &tracked, &artifacts)?;
     Ok(StatusReport {
         root: root.display().to_string(),
         indexed: ix.files.len(),
@@ -99,7 +99,9 @@ mod tests {
                 original_rel: "a".into(),
                 stored_rel: String::new(),
                 size: 1,
-                tags: [("g".to_string(), vec!["rock".to_string()])].into_iter().collect(),
+                tags: [("g".to_string(), vec!["rock".to_string()])]
+                    .into_iter()
+                    .collect(),
             },
             Record {
                 id: "b".into(),
