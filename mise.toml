@@ -42,9 +42,9 @@ run = "echo \"cli: mise run dev:cli | gui: mise run dev:gui\""
 # ---------- cli (Rust binary over storey-core) ----------
 
 [tasks."build:cli"]
-description = "Build storey CLI with cargo"
-run = "cargo build --manifest-path apps/cli/Cargo.toml"
-run_windows = "cargo build --manifest-path apps\\cli\\Cargo.toml"
+description = "Build storey CLI with cargo, staged at bin/storey like before"
+run = "cargo build --manifest-path apps/cli/Cargo.toml && mkdir -p apps/cli/bin && cp apps/cli/target/debug/storey apps/cli/bin/storey"
+run_windows = "cargo build --manifest-path apps\\cli\\Cargo.toml && if not exist apps\\cli\\bin mkdir apps\\cli\\bin && copy apps\\cli\\target\\debug\\storey.exe apps\\cli\\bin\\storey.exe"
 
 [tasks."test:cli"]
 description = "Test storey CLI with cargo"
