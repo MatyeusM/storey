@@ -8,7 +8,7 @@
 set -eu
 max_file=300
 max_func=50
-dirs="${*:-cli_go crates/storey-shared crates/storey-core apps/gui}"
+dirs="${*:-cli_go crates/storey-shared crates/core apps/gui}"
 bad=0
 files=$(find $dirs \( -name '*.go' -o -name '*.rs' \) -not -path '*/bin/*' -not -path '*/target/*' | sort)
 for f in $files; do

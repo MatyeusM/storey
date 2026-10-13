@@ -2,7 +2,7 @@
 //! renames, and store-to-original restoration.
 //!
 //! Argument parsing mirrors the reference CLI; the flows live in
-//! `storey-core::{remove, rename, restore}`.
+//! `storey-storey_core::{remove, rename, restore}`.
 
 use crate::{EXIT_OK, emit, fail, usage_err};
 use storey_core::log::Logger;

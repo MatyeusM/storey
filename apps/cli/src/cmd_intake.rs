@@ -1,6 +1,6 @@
 //! `init` and `update` wiring: locks, abort trapping, reports.
 //!
-//! Flows run in `storey-core::flows`; this module owns process
+//! Flows run in `storey-storey_core::flows`; this module owns process
 //! concerns (cwd, locks, signals, emergency saves) and printing.
 
 use crate::{EXIT_FAILURE, EXIT_OK, emit, fail, usage_err};

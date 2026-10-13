@@ -2,7 +2,7 @@
 name = "storey"
 version = "0.1.0"
 edition = "2024"
-description = "Storey CAS CLI: thin argument parsing over storey-core (see docs/CLI-CONTRACT.md)"
+description = "Storey CAS CLI: thin argument parsing over core (see docs/CLI-CONTRACT.md)"
 license = "MIT"
 
 [[bin]]
@@ -10,7 +10,7 @@ name = "storey"
 path = "src/main.rs"
 
 [dependencies]
-storey-core = { path = "../../crates/storey-core" }
+core = { path = "../../crates/core" }
 anyhow = "1"
 clap = { version = "4", features = ["derive"] }
 serde = { version = "1" }

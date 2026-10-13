@@ -1,8 +1,8 @@
 [package]
-name = "storey-core"
+name = "core"
 version = "0.1.0"
 edition = "2024"
-description = "Storey library logic: index, hashing, views, adoption (drives the CLI contract)"
+description = "Storey core library logic: index, hashing, views, adoption (drives the CLI contract)"
 license = "MIT"
 
 [lib]

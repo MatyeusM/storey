@@ -8,10 +8,10 @@
 
 ## Layout
 
-- `cli_go` (Go reference, stdlib only): behavioral source of truth — CAS + index + views. Being ported to `crates/storey-core` + Rust `apps/cli`; delete once the user signs off on parity.
-- `apps/cli` (Rust bin `storey`): thin CLI over `storey-core` — arg parsing plus response printing only (port in progress; see `cli_go` for the reference).
+- `cli_go` (Go reference, stdlib only): behavioral source of truth — CAS + index + views. Being ported to `crates/core` + Rust `apps/cli`; delete once the user signs off on parity.
+- `apps/cli` (Rust bin `storey`): thin CLI over `core` — arg parsing plus response printing only (port in progress; see `cli_go` for the reference).
 - `crates/storey-shared` (Rust lib `storey-shared`): common GUI layer — CLI subprocess driver, log parsing, record model, tag sources.
-- `crates/storey-core` (Rust lib `storey-core`): CLI logic — index, hashing, views, adoption (port of the Go CLI internals).
+- `crates/core` (Rust lib `core`): CLI logic — index, hashing, views, adoption (port of the Go CLI internals).
 - `apps/gui` (Rust/cxx-qt 0.10): thin client. It shells out to `storey --json` and **never touches the store or index directly**.
 - `.reference/` is a behavioral reference only — do not copy from it verbatim.
 - Rust crates are standalone (no workspace); each `Cargo.lock` is committed. Always pass `--manifest-path apps/<crate>/Cargo.toml` from the repo root.

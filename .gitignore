@@ -10,7 +10,7 @@ cli_go/*.exe
 apps/cli/bin/
 apps/cli/*.exe
 crates/storey-shared/target/
-crates/storey-core/target/
+crates/core/target/
 apps/gui/target/
 *.o
 *.a

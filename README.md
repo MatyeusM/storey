@@ -24,9 +24,9 @@ verbatim; reimplement per `docs/ARCHITECTURE.md`).
 | App | Dir | Stack | Role |
 | --- | --- | ----- | ---- |
 | `storey` | `cli_go` | Go | Reference CLI (source of truth during the Rust port). GUI shells out to it. |
-| `storey` | `apps/cli` | Rust | New CLI over `storey-core` (all commands ported, differentials green). |
+| `storey` | `apps/cli` | Rust | New CLI over `core` (all commands ported, differentials green). |
 | `storey-shared` | `crates/storey-shared` | Rust (lib) | Common UI layer: CLI subprocess driver, log parsing, index types. |
-| `storey-core` | `crates/storey-core` | Rust (lib) | CLI logic: index, hashing, views, adoption. |
+| `core` | `crates/core` | Rust (lib) | CLI logic: index, hashing, views, adoption. |
 | `storey-gui` | `apps/gui` | Rust + cxx-qt (Qt6) | Graphical interface. Thin client over the CLI. |
 
 ## Layout
@@ -34,7 +34,7 @@ verbatim; reimplement per `docs/ARCHITECTURE.md`).
 ```text
 .
 ├── cli_go/          # Go reference CLI (deleted at parity) — `storey` binary
-├── crates/            # Rust libs (`storey-shared` GUI layer, `storey-core` CLI logic)
+├── crates/            # Rust libs (`storey-shared` GUI layer, `core` CLI logic)
 ├── apps/gui/        # Rust crate + cxx-qt — `storey-gui` binary (Qt6)
 ├── docs/            # architecture, CLI contract, plugins, releasing
 ├── scripts/         # dist helper script + size-limit check (sh, cross-platform)

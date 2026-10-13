@@ -1,7 +1,7 @@
 //! `view` wiring: ingest, wipe, link, record.
 //!
 //! Argument parsing mirrors the reference CLI; the flow lives in
-//! `storey-core::materialize`.
+//! `storey-storey_core::materialize`.
 
 use crate::cmd_view_report::{blocked, dry_view, orphan_lines, print_summary};
 use crate::{EXIT_OK, emit, fail, usage_err};
