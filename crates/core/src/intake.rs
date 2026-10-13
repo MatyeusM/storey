@@ -95,8 +95,7 @@ pub struct Scan {
 pub fn fill_index(
     ix: &mut Index,
     root: &Path,
-    ordered: &[String],
-    by_rel: &HashMap<String, (String, i64)>,
+    hashed: &Hashed,
     dry: bool,
     abort: &AtomicBool,
 ) -> anyhow::Result<Scan> {
@@ -105,11 +104,11 @@ pub fn fill_index(
     for (i, rec) in ix.files.iter().enumerate() {
         by_hash.insert(rec.id.clone(), i);
     }
-    for rel in ordered {
+    for rel in &hashed.ordered {
         if abort.load(Ordering::Relaxed) {
             anyhow::bail!("interrupted");
         }
-        let (hash, size) = &by_rel[rel];
+        let (hash, size) = &hashed.by_rel[rel];
         if let Some(&j) = by_hash.get(hash) {
             if !on_disk(root, ix.files[j].location()) {
                 let dup = &mut ix.files[j];
@@ -275,15 +274,7 @@ mod tests {
         let calm = AtomicBool::new(false);
         let hashed = hash_rels(&dir, &rels, &logger, "hash", &calm);
         let abort = AtomicBool::new(false);
-        let scan = fill_index(
-            &mut ix,
-            &dir,
-            &hashed.ordered,
-            &hashed.by_rel,
-            false,
-            &abort,
-        )
-        .unwrap();
+        let scan = fill_index(&mut ix, &dir, &hashed, false, &abort).unwrap();
         assert_eq!(scan.added.len(), 2);
         assert_eq!(scan.purged.len(), 1);
         assert!(!dir.join("b.txt").exists());

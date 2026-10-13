@@ -14,7 +14,7 @@ use crate::log::Logger;
 
 #[path = "adopt_move.rs"]
 mod mv;
-pub use mv::{adopt_duplicate, adopt_in_place, adopt_stored};
+pub(crate) use mv::{adopt_duplicate, adopt_in_place, adopt_stored, problem};
 
 /// Tallies one merge pass.
 #[derive(Debug, Default)]
@@ -40,7 +40,14 @@ pub fn merge(root: &Path, ix: &mut Index, logger: &Logger, abort: &AtomicBool) -
         if abort.load(Ordering::Relaxed) {
             return FlowDone::Aborted;
         }
-        merge_one(root, &sub, ix, logger, abort, &mut res);
+        merge_one(One {
+            root,
+            sub: &sub,
+            ix: &mut *ix,
+            logger,
+            abort,
+            res: &mut res,
+        });
     }
     FlowDone::Done(res)
 }
@@ -59,15 +66,11 @@ fn find_sub_indexes(root: &Path) -> Vec<String> {
     let mut dirs = Vec::new();
     let mut stack = vec![root.to_path_buf()];
     while let Some(dir) = stack.pop() {
-        let entries = match std::fs::read_dir(&dir) {
-            Ok(e) => e,
-            Err(_) => continue,
+        let Ok(entries) = std::fs::read_dir(&dir) else {
+            continue;
         };
         for entry in entries.flatten() {
-            let ft = match entry.file_type() {
-                Ok(ft) => ft,
-                Err(_) => continue,
-            };
+            let Ok(ft) = entry.file_type() else { continue };
             if !ft.is_dir() || ft.is_symlink() {
                 continue;
             }
@@ -81,49 +84,75 @@ fn find_sub_indexes(root: &Path) -> Vec<String> {
             stack.push(p);
         }
     }
-    dirs.sort_by(|a, b| depth(b).cmp(&depth(a)).then_with(|| a.cmp(b)));
+    dirs.sort_by(|a, b| slashes(b).cmp(&slashes(a)).then_with(|| a.cmp(b)));
     dirs
 }
 
-fn depth(rel: &str) -> usize {
-    rel.chars().filter(|&c| c == '/').count()
+fn slashes(rel: &str) -> usize {
+    rel.bytes().filter(|&c| c == b'/').count()
 }
 
-fn merge_one(
-    root: &Path,
-    sub: &str,
-    ix: &mut Index,
-    logger: &Logger,
-    abort: &AtomicBool,
-    res: &mut Result,
-) {
-    let sub_abs = root.join(library::from_slash(sub));
+/// Per-record adoption context (keeps arity small).
+struct Ctx<'a> {
+    root: &'a Path,
+    sub: &'a str,
+    sub_abs: &'a Path,
+    by_loc: &'a std::collections::HashMap<String, hash::Outcome>,
+    ix: &'a mut Index,
+    res: &'a mut Result,
+}
+
+/// Single sub-index merge context (keeps arity small).
+struct One<'a> {
+    root: &'a Path,
+    sub: &'a str,
+    ix: &'a mut Index,
+    logger: &'a Logger,
+    abort: &'a AtomicBool,
+    res: &'a mut Result,
+}
+
+fn merge_one(ctx: One) {
+    let sub_abs = ctx.root.join(library::from_slash(ctx.sub));
     let sub_ix = match Index::load(&sub_abs) {
         Ok(ix) => ix,
         Err(e) => {
-            res.problems.push(format!("{sub}/.index.json: {e}"));
-            res.skipped.push(sub.to_string());
+            ctx.res
+                .problems
+                .push(format!("{}/.index.json: {e}", ctx.sub));
+            ctx.res.skipped.push(ctx.sub.to_string());
             return;
         }
     };
-    let by_loc = hash_sub_records(&sub_abs, &sub_ix, logger, abort);
+    let by_loc = hash_sub_records(&sub_abs, &sub_ix, ctx.logger, ctx.abort);
     let mut failed = false;
     for rec in &sub_ix.files {
-        if !adopt_record(root, sub, &sub_abs, rec, &by_loc, ix, res) {
+        let mut inner = Ctx {
+            root: ctx.root,
+            sub: ctx.sub,
+            sub_abs: &sub_abs,
+            by_loc: &by_loc,
+            ix: &mut *ctx.ix,
+            res: &mut *ctx.res,
+        };
+        if !adopt_record(rec, &mut inner) {
             failed = true;
         }
     }
     if failed {
-        res.skipped.push(sub.to_string());
+        ctx.res.skipped.push(ctx.sub.to_string());
         return;
     }
     if let Err(e) = std::fs::remove_file(sub_abs.join(index::FILE_NAME)) {
-        res.problems.push(format!("{sub}/.index.json: {e}"));
+        ctx.res
+            .problems
+            .push(format!("{}/.index.json: {e}", ctx.sub));
         return;
     }
-    res.indexes += 1;
+    ctx.res.indexes += 1;
     let _ = std::fs::remove_dir_all(sub_abs.join(index::STORE_DIR));
-    logger.info(format!("adopted nested library {sub}"));
+    ctx.logger
+        .info(format!("adopted nested library {}", ctx.sub));
 }
 
 /// Hash every indexed location of a sub-library, keyed by
@@ -154,45 +183,60 @@ fn hash_sub_records(
         .collect()
 }
 
-fn adopt_record(
-    root: &Path,
-    sub: &str,
-    sub_abs: &Path,
-    rec: &Record,
-    by_loc: &std::collections::HashMap<String, hash::Outcome>,
-    ix: &mut Index,
-    res: &mut Result,
-) -> bool {
-    if let Some(dup) = ix.find(&rec.id).cloned()
-        && moved_earlier(root, rec, &dup)
+fn adopt_record(rec: &Record, ctx: &mut Ctx) -> bool {
+    if let Some(dup) = ctx.ix.find(&rec.id).cloned()
+        && moved_earlier(ctx.root, rec, &dup)
     {
         return true;
     }
-    let outcome = match by_loc.get(rec.location()) {
-        Some(o) if o.error.is_none() => o,
-        _ => return problem(res, &format!("{sub}/{}: missing", rec.location())),
+    let sub = ctx.sub;
+    let outcome = match ctx.by_loc.get(rec.location()) {
+        Some(o) if o.error.is_none() => o.clone(),
+        _ => return problem(ctx.res, &format!("{sub}/{}: missing", rec.location())),
     };
     if outcome.hash != rec.id {
-        return problem(res, &format!("{sub}/{}: content changed", rec.location()));
+        return problem(
+            ctx.res,
+            &format!("{sub}/{}: content changed", rec.location()),
+        );
     }
-    if let Some(dup) = ix.find(&rec.id).cloned() {
-        return adopt_duplicate(sub, sub_abs, rec, &dup, res);
+    if let Some(dup) = ctx.ix.find(&rec.id).cloned() {
+        return adopt_duplicate(ctx.sub, ctx.sub_abs, rec, &dup, &mut *ctx.res);
     }
     if rec.stored() {
-        return adopt_stored(root, sub, sub_abs, rec, outcome.size, ix, res);
+        return adopt_stored(StoredCtx {
+            root: ctx.root,
+            sub: ctx.sub,
+            sub_abs: ctx.sub_abs,
+            rec,
+            size: outcome.size,
+            ix: &mut *ctx.ix,
+            res: &mut *ctx.res,
+        });
     }
     let want = format!("{sub}/{}", rec.original_rel);
-    if ix.files.iter().any(|r| r.location() == want) {
+    if ctx.ix.files.iter().any(|r| r.location() == want) {
         return problem(
-            res,
+            ctx.res,
             &format!(
                 "{sub}/{}: path already indexed with different content",
                 rec.location()
             ),
         );
     }
-    adopt_in_place(sub, rec, outcome.size, ix, res);
+    adopt_in_place(ctx.sub, rec, outcome.size, &mut *ctx.ix, &mut *ctx.res);
     true
+}
+
+/// Stored-record adoption context (keeps arity small).
+pub(crate) struct StoredCtx<'a> {
+    root: &'a Path,
+    sub: &'a str,
+    sub_abs: &'a Path,
+    rec: &'a Record,
+    size: i64,
+    ix: &'a mut Index,
+    res: &'a mut Result,
 }
 
 /// Whether rec was adopted by a previous pass: a stored record
@@ -202,11 +246,6 @@ fn moved_earlier(root: &Path, rec: &Record, dup: &Record) -> bool {
         return false;
     }
     std::fs::symlink_metadata(root.join(library::from_slash(&dup.stored_rel))).is_ok()
-}
-
-fn problem(res: &mut Result, msg: &str) -> bool {
-    res.problems.push(msg.to_string());
-    false
 }
 
 #[cfg(test)]

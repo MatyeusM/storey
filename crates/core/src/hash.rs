@@ -23,6 +23,7 @@ pub fn file(path: &Path) -> Result<(String, i64)> {
 }
 
 /// Outcome for one path. Failures are report-only, never fatal.
+#[derive(Clone)]
 pub struct Outcome {
     pub path: PathBuf,
     pub hash: String,
@@ -104,7 +105,7 @@ mod tests {
     fn pool_reports_failures() {
         let missing = PathBuf::from("/no/such/file/ever.txt");
         let calm = AtomicBool::new(false);
-        let out = files(&[missing.clone()], 2, &calm, |_, _, _| {});
+        let out = files(std::slice::from_ref(&missing), 2, &calm, |_, _, _| {});
         assert_eq!(out.len(), 1);
         assert!(out[0].error.is_some());
     }

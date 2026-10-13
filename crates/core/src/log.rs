@@ -30,13 +30,27 @@ impl Logger {
         if self.quiet {
             return;
         }
-        self.emit("info", msg.as_ref(), "", 0, 0, "");
+        self.emit(Event {
+            level: "info",
+            msg: Some(msg.as_ref()),
+            op: None,
+            done: None,
+            total: None,
+            path: None,
+        });
     }
 
     /// Warning. Always printed: warnings are load-bearing (e.g. a
     /// view link that could not be created).
     pub fn warn(&self, msg: impl AsRef<str>) {
-        self.emit("warn", msg.as_ref(), "", 0, 0, "");
+        self.emit(Event {
+            level: "warn",
+            msg: Some(msg.as_ref()),
+            op: None,
+            done: None,
+            total: None,
+            path: None,
+        });
     }
 
     /// Hashing progress: op is `hash`/`verify`, path the
@@ -45,37 +59,34 @@ impl Logger {
         if self.quiet || total == 0 {
             return;
         }
-        self.emit("progress", "", op, done, total, path);
+        self.emit(Event {
+            level: "progress",
+            msg: None,
+            op: Some(op),
+            done: Some(done),
+            total: Some(total),
+            path: Some(path),
+        });
     }
 
-    fn emit(&self, level: &str, msg: &str, op: &str, done: usize, total: usize, path: &str) {
+    fn emit(&self, ev: Event) {
         let _guard = self.mu.lock().unwrap();
         if self.as_json {
-            let ev = Event {
-                level,
-                msg: non_empty(msg),
-                op: non_empty(op),
-                done: non_zero(done),
-                total: non_zero(total),
-                path: non_empty(path),
-            };
             eprintln!("{}", serde_json::to_string(&ev).unwrap());
             return;
         }
-        match level {
-            "warn" => eprintln!("storey: warning: {msg}"),
-            "info" => eprintln!("storey: {msg}"),
-            _ => eprintln!("storey: {op} [{done}/{total}] {path}"),
+        match ev.level {
+            "warn" => eprintln!("storey: warning: {}", ev.msg.unwrap_or("")),
+            "info" => eprintln!("storey: {}", ev.msg.unwrap_or("")),
+            _ => eprintln!(
+                "storey: {} [{}/{}] {}",
+                ev.op.unwrap_or(""),
+                ev.done.unwrap_or(0),
+                ev.total.unwrap_or(0),
+                ev.path.unwrap_or("")
+            ),
         }
     }
-}
-
-fn non_empty(s: &str) -> Option<&str> {
-    if s.is_empty() { None } else { Some(s) }
-}
-
-fn non_zero(n: usize) -> Option<usize> {
-    if n == 0 { None } else { Some(n) }
 }
 
 #[derive(Serialize)]

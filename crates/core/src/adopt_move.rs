@@ -3,7 +3,7 @@
 use std::collections::{BTreeMap, HashMap};
 use std::path::Path;
 
-use super::{Result, problem};
+use super::{Result, StoredCtx};
 use crate::index::{self, Index, Record};
 use crate::library::from_slash;
 use crate::views;
@@ -29,18 +29,25 @@ pub fn adopt_duplicate(
     true
 }
 
+/// Record a verification failure against the merge result.
+pub(crate) fn problem(res: &mut Result, msg: &str) -> bool {
+    res.problems.push(msg.to_string());
+    false
+}
+
 /// Move a verified stored object from the sub-store into the parent
 /// `.files/`, resolving basename collisions with the stem suffix
 /// rule, and record it in `ix`.
-pub fn adopt_stored(
-    root: &Path,
-    sub: &str,
-    sub_abs: &Path,
-    rec: &Record,
-    size: i64,
-    ix: &mut Index,
-    res: &mut Result,
-) -> bool {
+pub(crate) fn adopt_stored(ctx: StoredCtx) -> bool {
+    let StoredCtx {
+        root,
+        sub,
+        sub_abs,
+        rec,
+        size,
+        ix,
+        res,
+    } = ctx;
     let taken = stored_names(ix);
     let name = views::store_name(&rec.display_name, &taken, &rec.id);
     let dst_rel = format!("{}/{}", index::STORE_DIR, name);
