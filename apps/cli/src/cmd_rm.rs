@@ -8,7 +8,7 @@ use crate::{EXIT_OK, emit, fail, usage_err};
 use storey_core::log::Logger;
 
 /// `storey remove|rm`: delete links, file, and record. Permanent.
-pub fn cmd_rm(args: &[String], as_json: bool, _logger: &Logger) -> i32 {
+pub fn cmd_rm(args: &[String], command: &str, as_json: bool, _logger: &Logger) -> i32 {
     let (dry, target) = match parse_rm_args(args) {
         Ok(v) => v,
         Err(msg) => return usage_err(&msg),
@@ -27,7 +27,7 @@ pub fn cmd_rm(args: &[String], as_json: bool, _logger: &Logger) -> i32 {
         removed: rec.id.clone(),
     };
     if dry {
-        emit("rm", as_json, &rep);
+        emit(command, as_json, &rep);
         if !as_json {
             println!(
                 "would remove {} ({}) and {} link(s)",
@@ -44,7 +44,7 @@ pub fn cmd_rm(args: &[String], as_json: bool, _logger: &Logger) -> i32 {
     if let Err(e) = opened.ix.save(&opened.root) {
         return fail(&format!("{e}"));
     }
-    emit("rm", as_json, &rep);
+    emit(command, as_json, &rep);
     if !as_json {
         println!("removed {} ({} link(s))", rep.removed, links.len());
     }

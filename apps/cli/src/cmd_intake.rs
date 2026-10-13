@@ -3,13 +3,17 @@
 //! Flows run in `storey-core::flows`; this module owns process
 //! concerns (cwd, locks, signals, emergency saves) and printing.
 
-use crate::{EXIT_FAILURE, EXIT_OK, emit, fail};
+use crate::{EXIT_FAILURE, EXIT_OK, emit, fail, usage_err};
 use storey_core::flows::{self, FlowDone};
 use storey_core::index::Index;
 use storey_core::log::Logger;
 
 /// Run `init`: refuse inside libraries, lock, adopt, hash, save.
-pub fn cmd_init(as_json: bool, dry: bool, logger: &Logger) -> i32 {
+pub fn cmd_init(args: &[String], as_json: bool, logger: &Logger) -> i32 {
+    let dry = match parse_init_args(args) {
+        Ok(dry) => dry,
+        Err(msg) => return usage_err(&msg),
+    };
     let cwd = match std::env::current_dir() {
         Ok(dir) => dir,
         Err(e) => return fail(&format!("{e}")),
@@ -55,7 +59,11 @@ pub fn cmd_init(as_json: bool, dry: bool, logger: &Logger) -> i32 {
 }
 
 /// Run trusted `update` (plus `--verify`): adopt, hash, save.
-pub fn cmd_update(as_json: bool, verify: bool, dry: bool, logger: &Logger) -> i32 {
+pub fn cmd_update(args: &[String], as_json: bool, logger: &Logger) -> i32 {
+    let (verify, dry) = match parse_update_args(args) {
+        Ok(v) => v,
+        Err(msg) => return usage_err(&msg),
+    };
     let mut opened = match crate::open_locked() {
         Ok(o) => o,
         Err(code) => return code,
@@ -70,6 +78,33 @@ pub fn cmd_update(as_json: bool, verify: bool, dry: bool, logger: &Logger) -> i3
         Ok(FlowDone::Aborted) => crate::emergency_save(&root, &opened.ix),
         Err(e) => fail(&format!("{e}")),
     }
+}
+
+/// Only `--dry-run` is accepted; anything else is a usage error.
+fn parse_init_args(args: &[String]) -> Result<bool, String> {
+    let mut dry = false;
+    for a in args {
+        if a == "--dry-run" {
+            dry = true;
+            continue;
+        }
+        return Err("init takes no arguments (only --dry-run)".into());
+    }
+    Ok(dry)
+}
+
+/// Only `--verify` and `--dry-run` are accepted.
+fn parse_update_args(args: &[String]) -> Result<(bool, bool), String> {
+    let mut verify = false;
+    let mut dry = false;
+    for a in args {
+        match a.as_str() {
+            "--verify" => verify = true,
+            "--dry-run" => dry = true,
+            _ => return Err(format!("update: unknown argument {a:?}")),
+        }
+    }
+    Ok((verify, dry))
 }
 
 fn dry_init_report(root: &std::path::Path, as_json: bool, logger: &Logger) -> i32 {

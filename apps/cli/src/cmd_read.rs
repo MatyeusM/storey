@@ -6,7 +6,10 @@ use crate::{EXIT_OK, EXIT_USAGE, emit, fail, usage_err};
 use storey_core::ops;
 
 /// `storey status`: read-only overview for humans and UIs.
-pub fn cmd_status(as_json: bool, _logger: &storey_core::log::Logger) -> i32 {
+pub fn cmd_status(args: &[String], as_json: bool, _logger: &storey_core::log::Logger) -> i32 {
+    if !args.is_empty() {
+        return usage_err("status takes no arguments");
+    }
     let cwd = match std::env::current_dir() {
         Ok(dir) => dir,
         Err(e) => return fail(&format!("{e}")),
@@ -39,8 +42,8 @@ pub fn cmd_status(as_json: bool, _logger: &storey_core::log::Logger) -> i32 {
 }
 
 /// `storey list`: records with an optional single filter.
-pub fn cmd_list(as_json: bool, untagged: bool, filter: Option<&str>) -> i32 {
-    let filter = match parse_list_filter(untagged, filter) {
+pub fn cmd_list(args: &[String], as_json: bool) -> i32 {
+    let filter = match parse_list_args(args) {
         Ok(f) => f,
         Err(msg) => return usage_err(&msg),
     };
@@ -72,9 +75,23 @@ pub fn cmd_list(as_json: bool, untagged: bool, filter: Option<&str>) -> i32 {
     EXIT_OK
 }
 
-/// Parse list selection: at most one `category=value`, and
-/// `--untagged` excludes filters.
-fn parse_list_filter(untagged: bool, filter: Option<&str>) -> Result<ops::ListFilter, String> {
+/// Parse list selection from raw args: `--untagged` anywhere,
+/// everything else is positional (at most one `category=value`,
+/// and `--untagged` excludes filters).
+fn parse_list_args(args: &[String]) -> Result<ops::ListFilter, String> {
+    let mut untagged = false;
+    let mut positionals = Vec::new();
+    for a in args {
+        if a == "--untagged" {
+            untagged = true;
+            continue;
+        }
+        positionals.push(a.clone());
+    }
+    if positionals.len() > 1 {
+        return Err("list takes at most one category=value filter".into());
+    }
+    let filter = positionals.pop();
     match (untagged, filter) {
         (true, Some(_)) => Err("list: --untagged excludes filters".into()),
         (true, None) => Ok(ops::ListFilter::Untagged),

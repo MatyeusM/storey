@@ -26,7 +26,9 @@ const EXIT_USAGE: i32 = 2;
 #[command(
     name = "storey",
     version,
-    about = "CAS with file-manager-friendly views"
+    about = "CAS with file-manager-friendly views",
+    disable_help_flag = true,
+    disable_version_flag = true
 )]
 struct Cli {
     #[command(subcommand)]
@@ -37,21 +39,22 @@ struct Cli {
 enum Commands {
     /// Create .index.json here, adopt nested libraries, hash in place.
     Init {
-        /// Preview without adopting, writing, or deleting.
-        #[arg(long)]
-        dry_run: bool,
+        /// Raw arguments (only --dry-run).
+        #[arg(trailing_var_arg = true, allow_hyphen_values = true)]
+        args: Vec<String>,
     },
     /// Fold nested libraries, hash new files, optionally re-verify.
     Update {
-        /// Re-hash every indexed path.
-        #[arg(long)]
-        verify: bool,
-        /// Preview without adopting, writing, or deleting.
-        #[arg(long)]
-        dry_run: bool,
+        /// Raw arguments (--verify, --dry-run).
+        #[arg(trailing_var_arg = true, allow_hyphen_values = true)]
+        args: Vec<String>,
     },
     /// Read-only overview: root, counts, pending files, view order.
-    Status,
+    Status {
+        /// Raw arguments (none take).
+        #[arg(trailing_var_arg = true, allow_hyphen_values = true)]
+        args: Vec<String>,
+    },
     /// Tag reads and writes (get, set, add, remove).
     Tag {
         /// Subcommand plus its raw arguments.
@@ -85,11 +88,9 @@ enum Commands {
     },
     /// All records, optionally one category=value filter or --untagged.
     List {
-        /// Only records with no tags (excludes filters).
-        #[arg(long)]
-        untagged: bool,
-        /// One category=value filter.
-        filter: Option<String>,
+        /// Raw arguments (--untagged plus at most one filter).
+        #[arg(trailing_var_arg = true, allow_hyphen_values = true)]
+        args: Vec<String>,
     },
 }
 
@@ -110,23 +111,72 @@ fn run() -> i32 {
             _ => rest.push(a),
         }
     }
-    let cli = Cli::try_parse_from(rest).unwrap_or_else(|e| e.exit());
+    if let Some(code) = pre_dispatch(&rest) {
+        return code;
+    }
+    let cli = match Cli::try_parse_from(&rest) {
+        Ok(cli) => cli,
+        Err(e)
+            if e.kind() == clap::error::ErrorKind::InvalidSubcommand
+                || e.kind() == clap::error::ErrorKind::UnknownArgument =>
+        {
+            // Unknown command (or a bare `--help` in command position,
+            // since help is manual here): Go-style notice plus usage.
+            return unknown_command(rest.get(1).map(|s| s.as_str()).unwrap_or(""));
+        }
+        Err(e) => e.exit(),
+    };
+    let invoked = rest.get(1).cloned().unwrap_or_default();
     let logger = storey_core::log::Logger::new(as_json, quiet);
     match &cli.command {
-        Commands::Init { dry_run } => cmd_intake::cmd_init(as_json, *dry_run, &logger),
-        Commands::Update { verify, dry_run } => {
-            cmd_intake::cmd_update(as_json, *verify, *dry_run, &logger)
-        }
-        Commands::Status => cmd_read::cmd_status(as_json, &logger),
+        Commands::Init { args } => cmd_intake::cmd_init(args, as_json, &logger),
+        Commands::Update { args } => cmd_intake::cmd_update(args, as_json, &logger),
+        Commands::Status { args } => cmd_read::cmd_status(args, as_json, &logger),
         Commands::Tag { args } => cmd_tag::cmd_tag(args, as_json),
         Commands::View { args } => cmd_view::cmd_view(args, as_json, &logger),
-        Commands::Remove { args } => cmd_rm::cmd_rm(args, as_json, &logger),
+        Commands::Remove { args } => cmd_rm::cmd_rm(args, &invoked, as_json, &logger),
         Commands::Mv { args } => cmd_mv::cmd_mv(args, as_json, &logger),
         Commands::Restore { args } => cmd_restore::cmd_restore(args, as_json, &logger),
-        Commands::List { untagged, filter } => {
-            cmd_read::cmd_list(as_json, *untagged, filter.as_deref())
-        }
+        Commands::List { args } => cmd_read::cmd_list(args, as_json),
     }
+}
+
+/// Leading `--help`/`--version`/empty handling plus the usage text,
+/// mirroring the reference CLI.
+fn pre_dispatch(rest: &[String]) -> Option<i32> {
+    match rest.get(1).map(|s| s.as_str()) {
+        None => {
+            usage();
+            Some(EXIT_USAGE)
+        }
+        Some("--help") | Some("-h") => {
+            usage();
+            Some(EXIT_OK)
+        }
+        Some("--version") => {
+            println!("storey {}", env!("CARGO_PKG_VERSION"));
+            Some(EXIT_OK)
+        }
+        _ => None,
+    }
+}
+
+/// Unknown command notice plus usage (exit 2).
+fn unknown_command(cmd: &str) -> i32 {
+    if !cmd.is_empty() {
+        eprintln!("storey: unknown command {cmd:?}");
+    }
+    usage();
+    EXIT_USAGE
+}
+
+/// Program usage on stdout.
+fn usage() {
+    println!("storey {}", env!("CARGO_PKG_VERSION"));
+    println!("usage: storey [--json] [--quiet] <command> [args]");
+    println!("commands: init update view list tag remove|rm mv restore status");
+    println!("logs and hashing progress go to stderr (JSONL under --json);");
+    println!("see docs/CLI-CONTRACT.md");
 }
 
 /// Print the stdout envelope (schema 1) under `--json`.
