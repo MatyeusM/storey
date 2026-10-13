@@ -5,8 +5,9 @@ use std::collections::{BTreeMap, HashSet};
 use std::path::Path;
 use std::sync::atomic::{AtomicBool, Ordering};
 
-use crate::flows::FlowDone;
+use crate::FlowDone;
 use crate::index::{FILE_NAME, Index, LOCK_NAME, STORE_DIR};
+use crate::library;
 
 /// `restore` payload.
 #[derive(Debug, serde::Serialize)]
@@ -35,7 +36,8 @@ pub fn find_conflicts(root: &Path, ix: &Index, stored: &[usize]) -> Vec<String> 
     stored
         .iter()
         .filter(|&&i| {
-            std::fs::symlink_metadata(root.join(from_slash(&ix.files[i].original_rel))).is_ok()
+            std::fs::symlink_metadata(root.join(library::from_slash(&ix.files[i].original_rel)))
+                .is_ok()
         })
         .map(|&i| ix.files[i].original_rel.clone())
         .collect()
@@ -46,7 +48,8 @@ pub fn missing_stored(root: &Path, ix: &Index, stored: &[usize]) -> Vec<String> 
     stored
         .iter()
         .filter(|&&i| {
-            std::fs::symlink_metadata(root.join(from_slash(&ix.files[i].stored_rel))).is_err()
+            std::fs::symlink_metadata(root.join(library::from_slash(&ix.files[i].stored_rel)))
+                .is_err()
         })
         .map(|&i| ix.files[i].stored_rel.clone())
         .collect()
@@ -74,10 +77,6 @@ pub fn keep_in_place(ix: &Index) -> HashSet<String> {
         .collect()
 }
 
-fn from_slash(rel: &str) -> std::path::PathBuf {
-    rel.split('/').collect()
-}
-
 /// Move stored objects back, clearing their store pointers.
 /// A destination appearing mid-run aborts with an error (the
 /// payload is not emitted then).
@@ -97,13 +96,16 @@ pub fn move_back(
             ix.files[i].original_rel.clone(),
             ix.files[i].original_rel.clone(),
         );
-        if std::fs::symlink_metadata(root.join(from_slash(&dst))).is_ok() {
+        if std::fs::symlink_metadata(root.join(library::from_slash(&dst))).is_ok() {
             anyhow::bail!("restore: {orig} appeared during restore");
         }
-        if let Some(parent) = root.join(from_slash(&dst)).parent() {
+        if let Some(parent) = root.join(library::from_slash(&dst)).parent() {
             std::fs::create_dir_all(parent)?;
         }
-        std::fs::rename(root.join(from_slash(&src)), root.join(from_slash(&dst)))?;
+        std::fs::rename(
+            root.join(library::from_slash(&src)),
+            root.join(library::from_slash(&dst)),
+        )?;
         ix.files[i].stored_rel.clear();
         restored += 1;
     }
@@ -115,7 +117,7 @@ pub fn move_back(
 pub fn clear_views(root: &Path, keep: &HashSet<String>) -> anyhow::Result<()> {
     let (files, dirs) = collect_entries(root, keep)?;
     for f in &files {
-        let abs = root.join(from_slash(f));
+        let abs = root.join(library::from_slash(f));
         let ft = std::fs::symlink_metadata(&abs)?.file_type();
         if ft.is_dir() && !ft.is_symlink() {
             std::fs::remove_dir_all(&abs)?;
@@ -137,7 +139,7 @@ fn collect_entries(
         for entry in std::fs::read_dir(&dir)? {
             let entry = entry?;
             let ft = entry.file_type()?;
-            let rel = slash_rel(root, &entry.path());
+            let rel = library::slash_rel(root, &entry.path());
             if rel == STORE_DIR || rel.starts_with(&format!("{STORE_DIR}/")) {
                 continue;
             }
@@ -158,17 +160,6 @@ fn collect_entries(
         }
     }
     Ok((files, dirs))
-}
-
-fn slash_rel(root: &Path, abs: &Path) -> String {
-    abs.strip_prefix(root)
-        .map(|r| {
-            r.components()
-                .map(|c| c.as_os_str().to_string_lossy().into_owned())
-                .collect::<Vec<_>>()
-                .join("/")
-        })
-        .unwrap_or_default()
 }
 
 fn keep_dir_set(keep: &HashSet<String>) -> HashSet<String> {
@@ -194,7 +185,7 @@ fn remove_empty_dirs(
         if keep_dirs.contains(d) {
             continue;
         }
-        let abs = root.join(from_slash(d));
+        let abs = root.join(library::from_slash(d));
         match std::fs::remove_dir(&abs) {
             Ok(()) => {}
             Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
@@ -212,11 +203,15 @@ fn remove_empty_dirs(
 }
 
 /// Execute `restore` under the caller's abort flag.
+/// Execute `restore` under the caller's abort flag. Reconciles
+/// crash residue first (like `view`), so previously stranded
+/// store files move back instead of lingering in `.files/`.
 pub fn exec_restore(
     root: &Path,
     ix: &mut Index,
     abort: &AtomicBool,
 ) -> anyhow::Result<FlowDone<usize>> {
+    crate::intake::reconcile_store(root, ix);
     let stored = stored_positions(ix);
     clear_views(root, &keep_in_place(ix))?;
     if abort.load(Ordering::Relaxed) {

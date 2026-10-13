@@ -3,8 +3,9 @@
 use std::collections::{BTreeMap, HashMap};
 use std::path::Path;
 
-use super::{Result, from_slash, problem};
+use super::{Result, problem};
 use crate::index::{self, Index, Record};
+use crate::library::from_slash;
 use crate::views;
 
 /// Verified record whose id is already indexed: the same path is

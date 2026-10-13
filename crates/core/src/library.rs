@@ -58,7 +58,11 @@ pub fn walk(root: &Path) -> Result<Vec<String>> {
             if !ft.is_file() {
                 continue;
             }
-            if name == index::FILE_NAME || name == index::LOCK_NAME || ignored_file(&name) {
+            if name == index::FILE_NAME
+                || name == index::LOCK_NAME
+                || name.starts_with(".index.json.tmp-")
+                || ignored_file(&name)
+            {
                 continue;
             }
             let full = entry.path();
@@ -79,11 +83,21 @@ fn absolutize(p: &Path) -> Result<PathBuf> {
     Ok(std::env::current_dir()?.join(p))
 }
 
-fn slash(rel: &Path) -> String {
+/// Slash-relative path of `path` inside `root`, or empty.
+pub fn slash_rel(root: &Path, path: &Path) -> String {
+    path.strip_prefix(root).map(slash).unwrap_or_default()
+}
+
+pub(crate) fn slash(rel: &Path) -> String {
     rel.components()
         .map(|c| c.as_os_str().to_string_lossy().into_owned())
         .collect::<Vec<_>>()
         .join("/")
+}
+
+/// Filesystem path for a slash-relative record path.
+pub fn from_slash(rel: &str) -> PathBuf {
+    rel.split('/').collect()
 }
 
 /// Exact basenames never indexed: OS thumbnails and caches.
@@ -135,6 +149,7 @@ mod tests {
     #[test]
     fn walk_skips_everything() {
         let dir = fixture("walk");
+        std::fs::write(dir.join(".index.json.tmp-0-123"), "x").unwrap();
         let paths = walk(&dir).unwrap();
         assert_eq!(paths, vec!["a.txt", "sub/b.txt"]);
         assert!(has_index_at(&dir));

@@ -4,6 +4,7 @@
 use std::path::Path;
 
 use crate::index::Index;
+use crate::library;
 
 /// `rm` payload: the removed record id.
 #[derive(Debug, serde::Serialize)]
@@ -28,7 +29,7 @@ pub fn links_for(ix: &Index, id: &str) -> Vec<String> {
 /// Unlink view paths, pruning newly-empty parent dirs.
 pub fn remove_links(root: &Path, links: &[String]) -> std::io::Result<()> {
     for p in links {
-        let abs = root.join(from_slash(p));
+        let abs = root.join(library::from_slash(p));
         match std::fs::remove_file(&abs) {
             Ok(()) => {}
             Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
@@ -42,7 +43,7 @@ pub fn remove_links(root: &Path, links: &[String]) -> std::io::Result<()> {
 fn prune_parents(root: &Path, rel: &str) {
     let mut dir = parent_dir(rel);
     while !dir.is_empty() && dir != "." {
-        if std::fs::remove_dir(root.join(from_slash(dir))).is_err() {
+        if std::fs::remove_dir(root.join(library::from_slash(dir))).is_err() {
             return;
         }
         dir = parent_dir(dir);
@@ -56,10 +57,6 @@ fn parent_dir(rel: &str) -> &str {
     }
 }
 
-fn from_slash(rel: &str) -> std::path::PathBuf {
-    rel.split('/').collect()
-}
-
 /// Delete the record's links and file, dropping it from the index.
 /// Returns the report; the caller saves.
 pub fn exec_rm(root: &Path, ix: &mut Index, pos: usize) -> anyhow::Result<RmReport> {
@@ -67,7 +64,7 @@ pub fn exec_rm(root: &Path, ix: &mut Index, pos: usize) -> anyhow::Result<RmRepo
     let location = ix.files[pos].location().to_string();
     let links = links_for(ix, &id);
     remove_links(root, &links)?;
-    let abs = root.join(from_slash(&location));
+    let abs = root.join(library::from_slash(&location));
     if let Err(e) = std::fs::symlink_metadata(&abs) {
         anyhow::bail!("rm: {location}: {e}");
     }

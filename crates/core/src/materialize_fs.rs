@@ -5,6 +5,7 @@ use std::path::Path;
 use std::sync::atomic::{AtomicBool, Ordering};
 
 use crate::index::{FILE_NAME, Index, LOCK_NAME, Record, STORE_DIR};
+use crate::library;
 use crate::log::Logger;
 use crate::views::{self, Link};
 
@@ -85,14 +86,14 @@ pub fn apply_moves(
             Some(dst) => dst.clone(),
             None => continue,
         };
-        let src = root.join(from_slash(rec.location()));
+        let src = root.join(library::from_slash(rec.location()));
         match dst {
             None => {
                 std::fs::remove_file(&src)?;
                 purged.push(rec.id.clone());
             }
             Some(dst) => {
-                std::fs::rename(&src, root.join(from_slash(&dst)))?;
+                std::fs::rename(&src, root.join(library::from_slash(&dst)))?;
                 rec.stored_rel = dst;
                 moved += 1;
             }
@@ -121,7 +122,7 @@ pub fn create_links(
             logger.warn(format!("view: {}: unknown id {}", link.view_path, link.id));
             continue;
         };
-        let abs = root.join(from_slash(&link.view_path));
+        let abs = root.join(library::from_slash(&link.view_path));
         if let Some(parent) = abs.parent()
             && let Err(e) = std::fs::create_dir_all(parent)
         {
@@ -129,7 +130,7 @@ pub fn create_links(
             logger.warn(format!("view: {}: {e}", link.view_path));
             continue;
         }
-        let store = root.join(from_slash(&rec.stored_rel));
+        let store = root.join(library::from_slash(&rec.stored_rel));
         match views::create_link(&store, &abs) {
             Ok(_) => made += 1,
             Err(e) => {
@@ -139,8 +140,4 @@ pub fn create_links(
         }
     }
     (made, failed)
-}
-
-fn from_slash(rel: &str) -> std::path::PathBuf {
-    rel.split('/').collect()
 }

@@ -129,7 +129,7 @@ pub fn cmd_view(args: &[String], as_json: bool, logger: &Logger) -> i32 {
     match materialize::exec_view(&mut opened.ix, ctx) {
         Ok(FlowDone::Done(done)) => {
             emit("view", as_json, &done);
-            print_summary(as_json, &by, &done, false);
+            print_summary(as_json, &by, done.moved, &done, false);
             EXIT_OK
         }
         Ok(FlowDone::Aborted) => crate::emergency_save(&opened.root, &opened.ix),

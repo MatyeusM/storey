@@ -7,7 +7,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 
 use serde::Serialize;
 
-use crate::flows::FlowDone;
+use crate::FlowDone;
 use crate::index::{Index, STORE_DIR};
 use crate::intake;
 use crate::library;
@@ -51,13 +51,11 @@ pub fn scan_blockers(root: &Path, ix: &mut Index) -> anyhow::Result<(Vec<String>
 pub fn missing_locations(root: &Path, ix: &Index) -> Vec<String> {
     ix.files
         .iter()
-        .filter(|r| std::fs::symlink_metadata(root.join(from_slash(r.location()))).is_err())
+        .filter(|r| {
+            std::fs::symlink_metadata(root.join(library::from_slash(r.location()))).is_err()
+        })
         .map(|r| r.location().to_string())
         .collect()
-}
-
-fn from_slash(rel: &str) -> std::path::PathBuf {
-    rel.split('/').collect()
 }
 
 /// Current location → store destination (`None` = purge as

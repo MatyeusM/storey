@@ -2,6 +2,7 @@
 //! left for UI/OS, per `docs/ARCHITECTURE.md`).
 
 use std::path::{Path, PathBuf};
+use std::sync::atomic::AtomicBool;
 
 use anyhow::{Context, Result};
 use sha2::{Digest, Sha256};
@@ -30,20 +31,28 @@ pub struct Outcome {
 }
 
 /// Hash paths concurrently. `progress` runs after each file with
-/// (done, total, path). Results arrive unordered.
+/// (done, total, path) — live, as workers finish. `abort` is
+/// polled between files: set it to stop early, keeping whatever
+/// finished so far. Results arrive unordered.
 pub fn files(
     paths: &[PathBuf],
     workers: usize,
+    abort: &AtomicBool,
     mut progress: impl FnMut(usize, usize, &Path),
 ) -> Vec<Outcome> {
+    use std::sync::atomic::Ordering;
     let workers = workers.max(1);
     let (out_tx, out_rx) = std::sync::mpsc::channel::<Outcome>();
     let chunk = paths.len().div_ceil(workers).max(1);
+    let mut results = Vec::with_capacity(paths.len());
     std::thread::scope(|s| {
         for group in paths.chunks(chunk) {
             let out_tx = out_tx.clone();
             s.spawn(move || {
                 for p in group {
+                    if abort.load(Ordering::Relaxed) {
+                        break;
+                    }
                     let outcome = match file(p) {
                         Ok((hash, size)) => Outcome {
                             path: p.clone(),
@@ -64,14 +73,15 @@ pub fn files(
                 }
             });
         }
+        drop(out_tx);
+        // Drain inside the scope so progress flows while workers run;
+        // the loop ends when the last worker drops its sender.
+        for outcome in out_rx {
+            results.push(outcome);
+            let last = &results[results.len() - 1];
+            progress(results.len(), paths.len(), &last.path);
+        }
     });
-    drop(out_tx);
-    let mut results = Vec::with_capacity(paths.len());
-    for outcome in out_rx {
-        results.push(outcome);
-        let last = &results[results.len() - 1];
-        progress(results.len(), paths.len(), &last.path);
-    }
     results
 }
 
@@ -93,7 +103,8 @@ mod tests {
     #[test]
     fn pool_reports_failures() {
         let missing = PathBuf::from("/no/such/file/ever.txt");
-        let out = files(&[missing.clone()], 2, |_, _, _| {});
+        let calm = AtomicBool::new(false);
+        let out = files(&[missing.clone()], 2, &calm, |_, _, _| {});
         assert_eq!(out.len(), 1);
         assert!(out[0].error.is_some());
     }

@@ -4,10 +4,12 @@
 //! from disk. Only moves and deletes here — never copies.
 
 use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicBool, Ordering};
 
+use crate::FlowDone;
 use crate::hash;
 use crate::index::{self, Index, Record};
-use crate::library;
+use crate::library::{self, slash_rel};
 use crate::log::Logger;
 
 #[path = "adopt_move.rs"]
@@ -32,12 +34,15 @@ pub struct Result {
 /// Fold every nested library under root into `ix` (root itself is
 /// excluded, as is anything inside `.files/`). A sub-index is
 /// deleted only when all of its records adopted cleanly.
-pub fn merge(root: &Path, ix: &mut Index, logger: &Logger) -> Result {
+pub fn merge(root: &Path, ix: &mut Index, logger: &Logger, abort: &AtomicBool) -> FlowDone<Result> {
     let mut res = Result::default();
     for sub in find_sub_indexes(root) {
-        merge_one(root, &sub, ix, logger, &mut res);
+        if abort.load(Ordering::Relaxed) {
+            return FlowDone::Aborted;
+        }
+        merge_one(root, &sub, ix, logger, abort, &mut res);
     }
-    res
+    FlowDone::Done(res)
 }
 
 /// Whether slash-relative path `p` sits inside a skipped (failed)
@@ -84,19 +89,15 @@ fn depth(rel: &str) -> usize {
     rel.chars().filter(|&c| c == '/').count()
 }
 
-fn slash_rel(root: &Path, abs: &Path) -> String {
-    abs.strip_prefix(root).map(slash).unwrap_or_default()
-}
-
-fn slash(rel: &Path) -> String {
-    rel.components()
-        .map(|c| c.as_os_str().to_string_lossy().into_owned())
-        .collect::<Vec<_>>()
-        .join("/")
-}
-
-fn merge_one(root: &Path, sub: &str, ix: &mut Index, logger: &Logger, res: &mut Result) {
-    let sub_abs = root.join(from_slash(sub));
+fn merge_one(
+    root: &Path,
+    sub: &str,
+    ix: &mut Index,
+    logger: &Logger,
+    abort: &AtomicBool,
+    res: &mut Result,
+) {
+    let sub_abs = root.join(library::from_slash(sub));
     let sub_ix = match Index::load(&sub_abs) {
         Ok(ix) => ix,
         Err(e) => {
@@ -105,7 +106,7 @@ fn merge_one(root: &Path, sub: &str, ix: &mut Index, logger: &Logger, res: &mut 
             return;
         }
     };
-    let by_loc = hash_sub_records(&sub_abs, &sub_ix, logger);
+    let by_loc = hash_sub_records(&sub_abs, &sub_ix, logger, abort);
     let mut failed = false;
     for rec in &sub_ix.files {
         if !adopt_record(root, sub, &sub_abs, rec, &by_loc, ix, res) {
@@ -125,29 +126,29 @@ fn merge_one(root: &Path, sub: &str, ix: &mut Index, logger: &Logger, res: &mut 
     logger.info(format!("adopted nested library {sub}"));
 }
 
-fn from_slash(rel: &str) -> PathBuf {
-    rel.split('/').collect()
-}
-
 /// Hash every indexed location of a sub-library, keyed by
 /// slash-relative path inside it.
 fn hash_sub_records(
     sub_abs: &Path,
     sub_ix: &Index,
     logger: &Logger,
+    abort: &AtomicBool,
 ) -> std::collections::HashMap<String, hash::Outcome> {
     let rels: Vec<String> = sub_ix
         .files
         .iter()
         .map(|r| r.location().to_string())
         .collect();
-    let abs: Vec<PathBuf> = rels.iter().map(|r| sub_abs.join(from_slash(r))).collect();
-    let out = hash::files(&abs, hash::workers(), |done, total, path| {
-        logger.progress("hash", done, total, &crate::intake::rel_of(sub_abs, path));
+    let abs: Vec<PathBuf> = rels
+        .iter()
+        .map(|r| sub_abs.join(library::from_slash(r)))
+        .collect();
+    let out = hash::files(&abs, hash::workers(), abort, |done, total, path| {
+        logger.progress("hash", done, total, &slash_rel(sub_abs, path));
     });
     out.into_iter()
         .map(|o| {
-            let rel = crate::intake::rel_of(sub_abs, &o.path);
+            let rel = slash_rel(sub_abs, &o.path);
             (rel, o)
         })
         .collect()
@@ -200,7 +201,7 @@ fn moved_earlier(root: &Path, rec: &Record, dup: &Record) -> bool {
     if !rec.stored() || !dup.stored() {
         return false;
     }
-    std::fs::symlink_metadata(root.join(from_slash(&dup.stored_rel))).is_ok()
+    std::fs::symlink_metadata(root.join(library::from_slash(&dup.stored_rel))).is_ok()
 }
 
 fn problem(res: &mut Result, msg: &str) -> bool {
@@ -242,7 +243,10 @@ mod tests {
         sub_ix.save(&sub).unwrap();
         let mut ix = Index::new();
         let logger = Logger::new(false, true);
-        let res = merge(&dir, &mut ix, &logger);
+        let calm = AtomicBool::new(false);
+        let FlowDone::Done(res) = merge(&dir, &mut ix, &logger, &calm) else {
+            panic!("aborted");
+        };
         assert!(res.problems.is_empty(), "{:?}", res.problems);
         assert_eq!(res.indexes, 1);
         assert_eq!(ix.files.len(), 1);

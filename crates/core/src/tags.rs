@@ -11,6 +11,7 @@ use serde::Serialize;
 
 use crate::hash;
 use crate::index::{Index, Record};
+use crate::library;
 
 /// Failure payload for unresolvable targets.
 #[derive(Debug, Serialize)]
@@ -88,19 +89,12 @@ fn match_path(root: &Path, ix: &Index, arg: &str) -> Option<usize> {
     {
         return None;
     }
-    let rel = slash(rel);
+    let rel = library::slash(rel);
     if let Some(pos) = ix.files.iter().position(|r| r.location() == rel) {
         return Some(pos);
     }
     let (hash, _) = hash::file(&resolved).ok()?;
     ix.files.iter().position(|r| r.id == hash)
-}
-
-fn slash(rel: &Path) -> String {
-    rel.components()
-        .map(|c| c.as_os_str().to_string_lossy().into_owned())
-        .collect::<Vec<_>>()
-        .join("/")
 }
 
 /// Distinct categories across the index, sorted.

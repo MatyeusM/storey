@@ -4,6 +4,7 @@
 use std::path::Path;
 
 use crate::index::{Index, STORE_DIR};
+use crate::library;
 use crate::remove;
 use crate::views;
 
@@ -37,7 +38,7 @@ pub fn plan_rename(
     let rec = &ix.files[pos];
     if !rec.stored() {
         let dst = join_dir(parent_of(&rec.original_rel), new_name);
-        if std::fs::symlink_metadata(root.join(from_slash(&dst))).is_ok() {
+        if std::fs::symlink_metadata(root.join(library::from_slash(&dst))).is_ok() {
             return Err(format!("mv: {dst} already exists"));
         }
         return Ok(RenamePlan {
@@ -79,10 +80,6 @@ fn store_base(rel: &str) -> String {
     rel.rsplit('/').next().unwrap_or(rel).to_string()
 }
 
-fn from_slash(rel: &str) -> std::path::PathBuf {
-    rel.split('/').collect()
-}
-
 /// Remove old links, move the file, update the record, rebuild
 /// links (stored records only).
 pub fn apply_rename(
@@ -96,8 +93,8 @@ pub fn apply_rename(
     let rec = &mut ix.files[pos];
     let was_stored = rec.stored();
     std::fs::rename(
-        root.join(from_slash(&plan.src)),
-        root.join(from_slash(&plan.dst)),
+        root.join(library::from_slash(&plan.src)),
+        root.join(library::from_slash(&plan.dst)),
     )?;
     let rec = &mut ix.files[pos];
     rec.display_name = plan.new_name.clone();
@@ -111,11 +108,11 @@ pub fn apply_rename(
     }
     let id = ix.files[pos].id.clone();
     for p in remove::links_for(ix, &id).iter() {
-        let abs = root.join(from_slash(p));
+        let abs = root.join(library::from_slash(p));
         if let Some(parent) = abs.parent() {
             std::fs::create_dir_all(parent)?;
         }
-        let store = root.join(from_slash(&ix.files[pos].stored_rel));
+        let store = root.join(library::from_slash(&ix.files[pos].stored_rel));
         views::create_link(&store, &abs).map_err(|e| anyhow::anyhow!("{p}: {e}"))?;
     }
     Ok(())

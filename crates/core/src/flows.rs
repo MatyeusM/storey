@@ -6,19 +6,11 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use anyhow::Result;
 use serde::Serialize;
 
+pub use crate::FlowDone;
 use crate::adopt;
 use crate::index::Index;
 use crate::intake;
 use crate::log::Logger;
-
-/// Outcome of an intake flow: report payload plus whether problems
-/// (report-only) or an abort occurred.
-pub enum FlowDone<T> {
-    /// Finished; problems (if any) ride in the report.
-    Done(T),
-    /// Abort flag set: index already saved by the caller path.
-    Aborted,
-}
 
 // --- init / update flows -------------------------------------------------
 
@@ -45,20 +37,32 @@ pub struct UpdateReport {
 }
 
 /// Adopt nested libraries, recording the outcome. Returns the
-/// shielded sub-index list for the file scan.
+/// shielded sub-index list for the file scan, or abort.
 fn adopt_into(
     ix: &mut Index,
     root: &Path,
     logger: &Logger,
+    abort: &AtomicBool,
     adopted: &mut Vec<String>,
     problems: &mut Vec<String>,
     purged: &mut Vec<String>,
-) -> Vec<String> {
-    let merged = adopt::merge(root, ix, logger);
-    adopted.extend(merged.adopted);
-    problems.extend(merged.problems);
-    purged.extend(merged.purged);
-    merged.skipped
+) -> FlowDone<Vec<String>> {
+    match adopt::merge(root, ix, logger, abort) {
+        FlowDone::Done(merged) => {
+            adopted.extend(merged.adopted);
+            problems.extend(merged.problems);
+            purged.extend(merged.purged);
+            FlowDone::Done(merged.skipped)
+        }
+        FlowDone::Aborted => FlowDone::Aborted,
+    }
+}
+
+/// Salvage partial hashing into the live index without deletes,
+/// so an abort keeps whatever finished.
+fn salvage(ix: &mut Index, root: &Path, hashed: &intake::Hashed) {
+    let calm = AtomicBool::new(false);
+    let _ = intake::fill_index(ix, root, &hashed.ordered, &hashed.by_rel, true, &calm);
 }
 
 fn aborted(abort: &AtomicBool) -> bool {
@@ -81,14 +85,18 @@ pub fn exec_init(
         adopted: vec![],
         problems: vec![],
     };
-    let skipped = adopt_into(
+    let skipped = match adopt_into(
         ix,
         root,
         logger,
+        abort,
         &mut rep.adopted,
         &mut rep.problems,
         &mut rep.purged,
-    );
+    ) {
+        FlowDone::Done(skipped) => skipped,
+        FlowDone::Aborted => return Ok(FlowDone::Aborted),
+    };
     if aborted(abort) {
         return Ok(FlowDone::Aborted);
     }
@@ -96,7 +104,11 @@ pub fn exec_init(
     if aborted(abort) {
         return Ok(FlowDone::Aborted);
     }
-    let hashed = intake::hash_rels(root, &rels, logger, "hash");
+    let hashed = intake::hash_rels(root, &rels, logger, "hash", abort);
+    if aborted(abort) {
+        salvage(ix, root, &hashed);
+        return Ok(FlowDone::Aborted);
+    }
     rep.problems.extend(hashed.problems);
     match intake::fill_index(ix, root, &hashed.ordered, &hashed.by_rel, false, abort) {
         Ok(scan) => {
@@ -125,18 +137,11 @@ pub fn dry_init(root: &Path, ix: &Index, logger: &Logger) -> Result<InitReport> 
         problems: vec![],
     };
     let rels = intake::candidates(root, ix, &[])?;
-    let hashed = intake::hash_rels(root, &rels, logger, "hash");
+    let calm = AtomicBool::new(false);
+    let hashed = intake::hash_rels(root, &rels, logger, "hash", &calm);
     rep.problems.extend(hashed.problems);
     let mut sim = intake::copy_index(ix);
-    let abort = AtomicBool::new(false);
-    let scan = intake::fill_index(
-        &mut sim,
-        root,
-        &hashed.ordered,
-        &hashed.by_rel,
-        true,
-        &abort,
-    )?;
+    let scan = intake::fill_index(&mut sim, root, &hashed.ordered, &hashed.by_rel, true, &calm)?;
     rep.added.extend(scan.added);
     rep.purged.extend(scan.purged);
     rep.moved.extend(scan.moved);
@@ -161,14 +166,18 @@ pub fn exec_update(
         reverified: 0,
         problems: vec![],
     };
-    let skipped = adopt_into(
+    let skipped = match adopt_into(
         ix,
         root,
         logger,
+        abort,
         &mut rep.adopted,
         &mut rep.problems,
         &mut rep.purged,
-    );
+    ) {
+        FlowDone::Done(skipped) => skipped,
+        FlowDone::Aborted => return Ok(FlowDone::Aborted),
+    };
     if aborted(abort) {
         return Ok(FlowDone::Aborted);
     }
@@ -176,7 +185,11 @@ pub fn exec_update(
     if aborted(abort) {
         return Ok(FlowDone::Aborted);
     }
-    let hashed = intake::hash_rels(root, &rels, logger, "hash");
+    let hashed = intake::hash_rels(root, &rels, logger, "hash", abort);
+    if aborted(abort) {
+        salvage(ix, root, &hashed);
+        return Ok(FlowDone::Aborted);
+    }
     rep.problems.extend(hashed.problems);
     match intake::fill_index(ix, root, &hashed.ordered, &hashed.by_rel, false, abort) {
         Ok(scan) => {
@@ -216,24 +229,17 @@ pub fn dry_update(root: &Path, ix: &Index, verify: bool, logger: &Logger) -> Res
         problems: vec![],
     };
     let rels = intake::candidates(root, ix, &[])?;
-    let hashed = intake::hash_rels(root, &rels, logger, "hash");
+    let calm = AtomicBool::new(false);
+    let hashed = intake::hash_rels(root, &rels, logger, "hash", &calm);
     rep.problems.extend(hashed.problems);
     let mut sim = intake::copy_index(ix);
-    let abort = AtomicBool::new(false);
-    let scan = intake::fill_index(
-        &mut sim,
-        root,
-        &hashed.ordered,
-        &hashed.by_rel,
-        true,
-        &abort,
-    )?;
+    let scan = intake::fill_index(&mut sim, root, &hashed.ordered, &hashed.by_rel, true, &calm)?;
     rep.added.extend(scan.added);
     rep.purged.extend(scan.purged);
     rep.moved.extend(scan.moved);
     if verify {
         rep.problems.extend(intake::reconcile_store(root, &mut sim));
-        let (more, reverified, removed) = intake::reverify(root, &mut sim, logger, &abort);
+        let (more, reverified, removed) = intake::reverify(root, &mut sim, logger, &calm);
         rep.problems.extend(more);
         rep.reverified = reverified;
         rep.removed = removed;

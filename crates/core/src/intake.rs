@@ -22,15 +22,24 @@ pub struct Hashed {
 
 /// Walk-ordered hashing of slash-relative paths under root,
 /// reporting progress as `op` through the logger.
-pub fn hash_rels(root: &Path, rels: &[String], logger: &Logger, op: &str) -> Hashed {
-    let abs: Vec<std::path::PathBuf> = rels.iter().map(|r| root.join(from_slash(r))).collect();
-    let outcomes = hash::files(&abs, hash::workers(), |done, total, path| {
-        logger.progress(op, done, total, &rel_of(root, path));
+pub fn hash_rels(
+    root: &Path,
+    rels: &[String],
+    logger: &Logger,
+    op: &str,
+    abort: &AtomicBool,
+) -> Hashed {
+    let abs: Vec<std::path::PathBuf> = rels
+        .iter()
+        .map(|r| root.join(library::from_slash(r)))
+        .collect();
+    let outcomes = hash::files(&abs, hash::workers(), abort, |done, total, path| {
+        logger.progress(op, done, total, &library::slash_rel(root, path));
     });
     let mut by_rel = HashMap::with_capacity(outcomes.len());
     let mut errors: HashMap<String, String> = HashMap::new();
     for o in outcomes {
-        let rel = rel_of(root, &o.path);
+        let rel = library::slash_rel(root, &o.path);
         match o.error {
             Some(msg) => {
                 errors.insert(rel, msg);
@@ -56,22 +65,6 @@ pub fn hash_rels(root: &Path, rels: &[String], logger: &Logger, op: &str) -> Has
         ordered,
         problems,
     }
-}
-
-fn slash(rel: &Path) -> String {
-    rel.components()
-        .map(|c| c.as_os_str().to_string_lossy().into_owned())
-        .collect::<Vec<_>>()
-        .join("/")
-}
-
-/// Slash-relative path of `path` inside `root`, or empty.
-pub(crate) fn rel_of(root: &Path, path: &Path) -> String {
-    path.strip_prefix(root).map(slash).unwrap_or_default()
-}
-
-fn from_slash(rel: &str) -> std::path::PathBuf {
-    rel.split('/').collect()
 }
 
 /// Files needing hashing: not at a tracked location, not a derived
@@ -128,7 +121,7 @@ pub fn fill_index(
                 continue;
             }
             if !dry {
-                std::fs::remove_file(root.join(from_slash(rel)))?;
+                std::fs::remove_file(root.join(library::from_slash(rel)))?;
             }
             scan.purged.push(hash.clone());
             continue;
@@ -154,7 +147,7 @@ fn basename(rel: &str) -> String {
 /// Whether rel exists under root. Any error counts as gone (never
 /// delete on doubt): a dangling link repoints rather than purges.
 fn on_disk(root: &Path, rel: &str) -> bool {
-    std::fs::metadata(root.join(from_slash(rel))).is_ok()
+    std::fs::metadata(root.join(library::from_slash(rel))).is_ok()
 }
 
 /// Heal crash residue: files sitting in `.files/` with no record
@@ -188,7 +181,7 @@ pub fn reconcile_store(root: &Path, ix: &mut Index) -> Vec<String> {
         if referenced.contains(&rel) {
             continue;
         }
-        let abs = root.join(from_slash(&rel));
+        let abs = root.join(library::from_slash(&rel));
         let (hash, size) = match hash::file(&abs) {
             Ok(v) => v,
             Err(e) => {
@@ -224,7 +217,7 @@ pub fn reverify(
         if abort.load(Ordering::Relaxed) {
             break;
         }
-        let abs = root.join(from_slash(rec.location()));
+        let abs = root.join(library::from_slash(rec.location()));
         match hash::file(&abs) {
             Err(e) if is_not_found(&e) => missing.push(i),
             Err(e) => problems.push(format!("{}: {e}", rec.location())),
@@ -279,7 +272,8 @@ mod tests {
             "c.txt".to_string(),
         ];
         let logger = Logger::new(false, true);
-        let hashed = hash_rels(&dir, &rels, &logger, "hash");
+        let calm = AtomicBool::new(false);
+        let hashed = hash_rels(&dir, &rels, &logger, "hash", &calm);
         let abort = AtomicBool::new(false);
         let scan = fill_index(
             &mut ix,

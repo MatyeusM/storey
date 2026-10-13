@@ -16,11 +16,14 @@ pub fn cmd_restore(args: &[String], as_json: bool, _logger: &Logger) -> i32 {
         Ok(o) => o,
         Err(code) => return code,
     };
+    // Heal crash residue before planning (like `view`); dry previews
+    // and skipped counts then see the same index `exec` will use.
+    storey_core::intake::reconcile_store(&opened.root, &mut opened.ix);
     let stored = storey_core::restore::stored_positions(&opened.ix);
     let rep = storey_core::restore::RestoreReport {
         restored: 0,
         skipped: opened.ix.files.len() - stored.len(),
-        conflicts: None,
+        conflicts: Some(vec![]),
         problems: vec![],
         untracked: vec![],
         moves: Default::default(),
@@ -32,12 +35,23 @@ pub fn cmd_restore(args: &[String], as_json: bool, _logger: &Logger) -> i32 {
         }
         return EXIT_OK;
     }
-    let mut rep = match guard_restore(&mut opened, &stored, force, as_json, rep) {
+    let rep = match guard_restore(&mut opened, &stored, force, as_json, rep) {
         Ok(rep) => rep,
         Err(code) => return code,
     };
+    run_restore(&mut opened, &stored, dry, as_json, rep)
+}
+
+/// Execute the dry preview or the live restore.
+fn run_restore(
+    opened: &mut crate::Opened,
+    stored: &[usize],
+    dry: bool,
+    as_json: bool,
+    mut rep: storey_core::restore::RestoreReport,
+) -> i32 {
     if dry {
-        return dry_restore(as_json, &opened.ix, &stored, rep);
+        return dry_restore(as_json, &opened.ix, stored, rep);
     }
     let abort = crate::trap_abort();
     match storey_core::restore::exec_restore(&opened.root, &mut opened.ix, &abort) {
@@ -93,9 +107,7 @@ fn guard_restore(
         .unwrap_or(false);
     if (!rep.untracked.is_empty() || has_conflicts) && !force {
         emit("restore", as_json, &rep);
-        if !as_json {
-            report_blocked(&rep.untracked, rep.conflicts.as_deref().unwrap_or(&[]));
-        }
+        report_blocked(&rep.untracked, rep.conflicts.as_deref().unwrap_or(&[]));
         return Err(crate::EXIT_FAILURE);
     }
     let missing = storey_core::restore::missing_stored(&opened.root, &opened.ix, stored);
