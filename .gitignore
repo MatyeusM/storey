@@ -5,7 +5,6 @@ local/
 build/
 dist/
 target/
-apps/cli/bin/
 apps/cli/*.exe
 *.o
 *.a

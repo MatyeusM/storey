@@ -56,7 +56,7 @@ verbatim; reimplement per `docs/ARCHITECTURE.md`).
 
 ```sh
 mise install          # one-time toolchain install
-mise run build:cli    # Rust CLI -> apps/cli/bin/storey
+mise run build:cli    # Rust CLI -> target/debug/storey
 mise run build:gui    # Qt GUI (needs system Qt6)
 mise run build        # all
 mise run test         # cli + shared + gui suites
