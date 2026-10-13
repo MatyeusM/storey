@@ -1,7 +1,8 @@
 # CLI contract (v0.2 draft — decided, implemented)
 
-`storey` owns all CAS/index/view logic. The GUI drives it as a
-subprocess using `--json` output. This file pins the command surface.
+`storey` owns all CAS/index/view logic. External tools drive it as
+a subprocess using `--json` output (the GUI links the same logic
+in-process instead). This file pins the command surface.
 
 ## Library layout (locked)
 

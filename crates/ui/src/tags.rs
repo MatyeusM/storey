@@ -16,8 +16,8 @@ use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
 
 use crate::manifest::{self, ResolvedCommand};
-use crate::model::Record;
 use crate::settings::PluginDecl;
+use storey_core::index::Record;
 
 /// One suggested `category = value` tag.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]

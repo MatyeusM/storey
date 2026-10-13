@@ -29,17 +29,14 @@ A managed library folder contains:
   filename validation, OS open helpers. Hashing runs on a worker pool
   (NumCPU-1, one core left for UI/OS) and reports progress on stderr
   (human text, or JSONL under `--json`) for the UIs to consume.
-- `storey-gui` (Rust/cxx-qt) is a
-  **thin client**: it invokes `storey` as a subprocess, parses its
-  machine-readable output, and never touches the store or index directly.
-  It builds on `storey-shared`, a common Rust library for driving the
-  CLI (envelope + JSONL log parsing), index types, and future tag
-  sources (e.g. MusicBrainz lookups).
+- `storey-gui` (Rust/cxx-qt) is a thin Qt shell over the `ui`
+  crate: it links `core` directly (no subprocess) and never touches
+  the store or index except through `core` flows. UI state, plugin
+  queries, and settings live in `ui`; index types and tag sources
+  come from `core` (e.g. future MusicBrainz lookups).
 - The subprocess contract (args, stdout JSON schema, stderr log schema,
   exit codes) is specified in `CLI-CONTRACT.md` and is the only
-  coupling between the CLI and the GUI. The GUI must accept a
-  `--storey-bin` override for testing and for distro packaging edge
-  cases.
+  coupling between the CLI binary and the outside world.
 
 ## Open questions (decide before implementation)
 

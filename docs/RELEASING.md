@@ -5,8 +5,8 @@ Single version source: repo-root `VERSION` (currently `0.1.0`). Release flow:
 1. Keep `CHANGELOG.md` `[Unreleased]` current as work lands.
 2. Bump `VERSION` and the two per-app versions together:
    - `apps/cli/Cargo.toml` `version`,
-   - `crates/storey-shared/Cargo.toml` `version` and `apps/gui/Cargo.toml`
-     `version` (UIs share the version via `storey-shared`).
+   - `apps/gui/Cargo.toml`
+     `version` (single `[workspace.package]` version).
 3. Move the `[Unreleased]` entries under a new
    `## [X.Y.Z] - YYYY-MM-DD` section in `CHANGELOG.md`.
 4. Commit, tag `vX.Y.Z`, push tag.

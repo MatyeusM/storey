@@ -1,0 +1,17 @@
+[package]
+name = "ui"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Storey UI logic: Qt-free state and actions over core (apps/gui is the thin Qt shell)"
+
+[lib]
+name = "ui"
+path = "src/lib.rs"
+
+[dependencies]
+storey-core.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+anyhow.workspace = true
+toml.workspace = true

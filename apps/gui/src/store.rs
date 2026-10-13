@@ -1,15 +1,14 @@
-//! storey-gui: Qt6 graphical interface to the `storey` CLI.
+//! storey-gui: Qt6 graphical interface over linked `core`.
 //!
-//! [`ffi::StoreyLibrary`] is the QML-facing root object: Win11-style
-//! explorer state (cwd, filtered entries/records, counts, plugins)
-//! plus the explicit `ui.toml` `[gui]` overrides as JSON. Bodies live
-//! in `nav`, `library`, `tagging`, `places`, and `plugins` so the
-//! bridge file stays small. Library work goes via `storey-shared`.
+//! The QObject below is a thin QString mirror: every invokable
+//! moves the inner [`ui::State`] out, calls one `ui` action, and
+//! commits the result back for QML. All logic lives in `crates/ui`.
 
 use cxx_qt_lib::QString;
-use storey_shared::{model::Record, settings::Settings, tags::Suggestion};
 
-use crate::plugins::PluginRow;
+use core::pin::Pin;
+
+use cxx_qt::CxxQtType;
 
 #[cxx_qt::bridge]
 pub mod ffi {
@@ -35,7 +34,6 @@ pub mod ffi {
         #[qproperty(QString, plugins_json)]
         #[qproperty(QString, places_json)]
         #[qproperty(QString, filter_query)]
-        #[qproperty(QString, storey_bin)]
         #[qproperty(QString, selected_id)]
         #[qproperty(QString, progress_label)]
         #[qproperty(QString, size_text)]
@@ -48,8 +46,6 @@ pub mod ffi {
         #[qproperty(f64, progress_fraction)]
         type StoreyLibrary = super::StoreyLibraryRust;
 
-        #[qinvokable]
-        fn configure(self: Pin<&mut Self>, bin: QString, cwd: QString);
         #[qinvokable]
         fn refresh(self: Pin<&mut Self>);
         #[qinvokable]
@@ -97,7 +93,8 @@ pub mod ffi {
     impl cxx_qt::Threading for StoreyLibrary {}
 }
 
-/// Rust state backing the [`ffi::StoreyLibrary`] QObject.
+/// Rust state backing the [`ffi::StoreyLibrary`] QObject: QString
+/// mirror plus the logic-owned [`ui::State`].
 pub struct StoreyLibraryRust {
     gui_overrides: QString,
     cwd: QString,
@@ -112,7 +109,6 @@ pub struct StoreyLibraryRust {
     plugins_json: QString,
     places_json: QString,
     filter_query: QString,
-    storey_bin: QString,
     selected_id: QString,
     progress_label: QString,
     size_text: QString,
@@ -123,54 +119,42 @@ pub struct StoreyLibraryRust {
     folder_count: i32,
     file_count: i32,
     progress_fraction: f64,
-    pub(crate) records: Vec<Record>,
-    pub(crate) view: Vec<String>,
-    pub(crate) categories: Vec<String>,
-    pub(crate) suggestions: Vec<Suggestion>,
-    pub(crate) plugin_rows: Vec<PluginRow>,
-    pub(crate) settings: Settings,
+    pub(crate) inner: ui::State,
 }
 
 impl Default for StoreyLibraryRust {
-    /// Env-configured paths plus explicit `ui.toml` overrides; QML
-    /// calls `refresh` next. Theme defaults live in QML — only
-    /// explicit, valid `[gui]` keys travel in `gui_overrides`.
+    /// Start dir from the environment; QML calls `refresh` next.
+    /// Theme defaults live in QML — only explicit, valid `[gui]`
+    /// keys travel in `gui_overrides`.
     fn default() -> Self {
-        let settings = storey_shared::settings::load().unwrap_or_default();
-        let json = storey_shared::theme::GuiTheme::overrides_json(&settings.gui);
-        let bin = std::env::var("STOREY_BIN").unwrap_or_else(|_| "storey".into());
+        let settings = ui::settings::load().unwrap_or_default();
         let cwd = std::env::var("STOREY_START_DIR").unwrap_or_else(|_| ".".into());
+        let inner = ui::State::new(cwd, settings);
         Self {
-            gui_overrides: Self::q(&json.to_string()),
-            cwd: Self::q(&cwd),
-            root: Self::q(""),
-            status_text: Self::q(""),
-            entries_json: Self::q("[]"),
-            records_json: Self::q("[]"),
-            view_json: Self::q("[]"),
-            categories_json: Self::q("[]"),
-            detail_json: Self::q("null"),
-            suggestions_json: Self::q("[]"),
-            plugins_json: Self::q("[]"),
-            places_json: Self::q("[]"),
-            filter_query: Self::q(""),
-            storey_bin: Self::q(&bin),
-            selected_id: Self::q(""),
-            progress_label: Self::q(""),
-            size_text: Self::q(""),
-            is_repo: false,
-            busy: false,
-            file_view: false,
-            untagged_only: false,
-            folder_count: 0,
-            file_count: 0,
-            progress_fraction: -1.0,
-            records: Vec::new(),
-            view: Vec::new(),
-            categories: Vec::new(),
-            suggestions: Vec::new(),
-            plugin_rows: Vec::new(),
-            settings,
+            gui_overrides: Self::q(&inner.gui_overrides),
+            cwd: Self::q(&inner.cwd),
+            root: Self::q(&inner.root),
+            status_text: Self::q(&inner.status_text),
+            entries_json: Self::q(&inner.entries_json),
+            records_json: Self::q(&inner.records_json),
+            view_json: Self::q(&inner.view_json),
+            categories_json: Self::q(&inner.categories_json),
+            detail_json: Self::q(&inner.detail_json),
+            suggestions_json: Self::q(&inner.suggestions_json),
+            plugins_json: Self::q(&inner.plugins_json),
+            places_json: Self::q(&inner.places_json),
+            filter_query: Self::q(&inner.filter_query),
+            selected_id: Self::q(&inner.selected_id),
+            progress_label: Self::q(&inner.progress_label),
+            size_text: Self::q(&inner.size_text),
+            is_repo: inner.is_repo,
+            busy: inner.busy,
+            file_view: inner.file_view,
+            untagged_only: inner.untagged_only,
+            folder_count: inner.folder_count,
+            file_count: inner.file_count,
+            progress_fraction: inner.progress_fraction,
+            inner,
         }
     }
 }
@@ -180,4 +164,58 @@ impl StoreyLibraryRust {
     pub(crate) fn q(value: &str) -> QString {
         QString::from(value)
     }
+}
+
+/// Move the logic state out (callers commit it back).
+pub(crate) fn take_state(mut obj: Pin<&mut ffi::StoreyLibrary>) -> ui::State {
+    std::mem::take(&mut obj.as_mut().rust_mut().inner)
+}
+
+/// Mirror logic state into QString properties, then store it.
+pub(crate) fn commit(mut obj: Pin<&mut ffi::StoreyLibrary>, st: ui::State) {
+    obj.as_mut()
+        .set_gui_overrides(StoreyLibraryRust::q(&st.gui_overrides));
+    obj.as_mut().set_cwd(StoreyLibraryRust::q(&st.cwd));
+    obj.as_mut().set_root(StoreyLibraryRust::q(&st.root));
+    obj.as_mut()
+        .set_status_text(StoreyLibraryRust::q(&st.status_text));
+    obj.as_mut()
+        .set_entries_json(StoreyLibraryRust::q(&st.entries_json));
+    obj.as_mut()
+        .set_records_json(StoreyLibraryRust::q(&st.records_json));
+    obj.as_mut()
+        .set_view_json(StoreyLibraryRust::q(&st.view_json));
+    obj.as_mut()
+        .set_categories_json(StoreyLibraryRust::q(&st.categories_json));
+    obj.as_mut()
+        .set_detail_json(StoreyLibraryRust::q(&st.detail_json));
+    obj.as_mut()
+        .set_suggestions_json(StoreyLibraryRust::q(&st.suggestions_json));
+    obj.as_mut()
+        .set_plugins_json(StoreyLibraryRust::q(&st.plugins_json));
+    obj.as_mut()
+        .set_places_json(StoreyLibraryRust::q(&st.places_json));
+    obj.as_mut()
+        .set_filter_query(StoreyLibraryRust::q(&st.filter_query));
+    obj.as_mut()
+        .set_selected_id(StoreyLibraryRust::q(&st.selected_id));
+    obj.as_mut()
+        .set_progress_label(StoreyLibraryRust::q(&st.progress_label));
+    obj.as_mut()
+        .set_size_text(StoreyLibraryRust::q(&st.size_text));
+    obj.as_mut().set_is_repo(st.is_repo);
+    obj.as_mut().set_busy(st.busy);
+    obj.as_mut().set_file_view(st.file_view);
+    obj.as_mut().set_untagged_only(st.untagged_only);
+    obj.as_mut().set_folder_count(st.folder_count);
+    obj.as_mut().set_file_count(st.file_count);
+    obj.as_mut().set_progress_fraction(st.progress_fraction);
+    obj.as_mut().rust_mut().inner = st;
+}
+
+/// Run one logic action against the inner state, then mirror.
+pub(crate) fn act(mut obj: Pin<&mut ffi::StoreyLibrary>, f: impl FnOnce(&mut ui::State)) {
+    let mut st = take_state(obj.as_mut());
+    f(&mut st);
+    commit(obj.as_mut(), st);
 }

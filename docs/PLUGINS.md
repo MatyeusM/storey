@@ -3,7 +3,7 @@
 Storey ships **no built-in tag suggesters**. Every suggestion source is
 an external plugin — a program in any language that reads one record
 and prints suggested tags. The GUI (`storey-gui`) queries
-plugins through `storey-shared` (`crates/storey-shared/src/tags.rs`). A person or an LLM following this file can write, register,
+plugins through `ui` (`crates/ui/src/tags.rs`). A person or an LLM following this file can write, register,
 and debug a plugin without reading the Rust code.
 
 ## Shapes: file or directory
@@ -222,7 +222,7 @@ echo '{"id":"ab","displayName":"a.mkv","originalRel":"a.mkv","size":1,"tags":{}}
 ## How the GUI uses plugins
 
 - **Tag editor**: `Suggest` runs `lookup` on every enabled plugin
-  through `storey-shared` and lists ranked suggestions under the
+  through `crates/ui` and lists ranked suggestions under the
   editor; `Apply all` merges them via grouped `tag add`.
 - **Plugins dialog**: one row per `[[plugins]]` declaration with
   health — `ok`, `missing binary` (program not found), or the

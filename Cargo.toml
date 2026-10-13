@@ -1,0 +1,27 @@
+# Workspace root: all Rust crates build together with one lockfile.
+# Per-crate tasks still address members directly:
+# `cargo build --manifest-path apps/cli/Cargo.toml`.
+[workspace]
+resolver = "3"
+members = ["apps/*", "crates/*"]
+default-members = ["apps/cli", "apps/gui", "crates/*"]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+license = "MIT"
+
+[workspace.dependencies]
+anyhow = "1"
+clap = { version = "4", features = ["derive"] }
+cxx = "1.0.95"
+cxx-qt = "0.10"
+cxx-qt-build = { version = "0.10", features = ["link_qt_object_files"] }
+cxx-qt-lib = { version = "0.10", features = ["qt_full"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+sha2 = { version = "0.10", features = ["asm"] }
+signal-hook = "0.3"
+toml = "0.8"
+storey-core = { path = "crates/core" }
+ui = { path = "crates/ui" }

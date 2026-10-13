@@ -1,177 +1,110 @@
-//! Navigation invokables: configure, refresh, up/open/enter,
-//! init/update on a worker thread, open-in-explorer, status clearing.
+//! Thin navigation invokables: each mirrors one `ui::nav` action.
 //!
-//! Entering a directory inside a library is blocked on purpose:
-//! the view is regenerable output, so drilling in would only
-//! confuse — the status bar says to use the file explorer instead.
+//! Worker threads stay here (Qt thread queue); the flows they run
+//! live in `ui`.
 
 use core::pin::Pin;
 
+use cxx_qt::CxxQtType;
 use cxx_qt_lib::QString;
-use storey_shared::cli::CliError;
 
 use crate::{
-    places,
-    state::{finish_init, finish_update, send_tick, sync_all, take_busy},
-    store::ffi,
+    store::{act, ffi},
     support,
 };
 
 impl ffi::StoreyLibrary {
-    pub(crate) fn configure(mut self: Pin<&mut Self>, bin: QString, cwd: QString) {
-        if !support::s(&bin).is_empty() {
-            self.as_mut().set_storey_bin(bin);
-        }
-        if !support::s(&cwd).is_empty() {
-            self.as_mut().set_cwd(cwd);
-        }
-        self.as_mut().refresh();
-    }
-
     pub(crate) fn refresh(mut self: Pin<&mut Self>) {
-        let mut pin = self.as_mut();
-        sync_all(&mut pin);
+        act(self.as_mut(), ui::state::sync_all);
     }
 
     pub(crate) fn go_up(mut self: Pin<&mut Self>) {
-        let cwd = support::path_of(self.as_ref().cwd());
-        if let Some(parent) = cwd.parent() {
-            let text = parent.display().to_string();
-            move_cwd(self.as_mut(), &text);
-        }
-        self.as_mut().refresh();
+        act(self.as_mut(), ui::nav::go_up);
     }
 
     pub(crate) fn open_path(mut self: Pin<&mut Self>, path: QString) {
-        let target = support::path_of(&path);
-        if target.is_dir() {
-            let text = target.display().to_string();
-            move_cwd(self.as_mut(), &text);
-            self.as_mut().clear_status();
-            self.as_mut().refresh();
-        }
+        let target = support::s(&path);
+        act(self.as_mut(), move |st| ui::nav::open_path(st, &target));
     }
 
     pub(crate) fn enter_dir(mut self: Pin<&mut Self>, path: QString) {
-        if let Some(msg) = blocked_message(*self.as_ref().is_repo()) {
-            self.as_mut().set_status_text(support::qstr(&msg));
-            return;
-        }
-        let target = support::path_of(&path);
-        if target.is_dir() {
-            let text = target.display().to_string();
-            move_cwd(self.as_mut(), &text);
-            self.as_mut().refresh();
-        }
+        let target = support::s(&path);
+        act(self.as_mut(), move |st| ui::nav::enter_dir(st, &target));
     }
 
     pub(crate) fn clear_status(mut self: Pin<&mut Self>) {
-        let kept = support::s(self.as_ref().status_text());
-        if kept.starts_with("storey error:") || kept.starts_with("storey error (") {
-            return;
-        }
-        self.as_mut().set_status_text(support::qstr(""));
+        act(self.as_mut(), ui::nav::clear_status);
     }
 
-    /// Drop the status line unconditionally (decay timer in QML).
     pub(crate) fn dismiss_status(mut self: Pin<&mut Self>) {
-        self.as_mut().set_status_text(support::qstr(""));
+        act(self.as_mut(), ui::nav::dismiss_status);
     }
 
     pub(crate) fn open_in_explorer(mut self: Pin<&mut Self>) {
-        let cwd = support::path_of(self.as_ref().cwd());
-        if let Err(e) = places::open_in_explorer(&cwd) {
-            let detail = short_detail(&e.to_string());
-            self.as_mut().set_status_text(support::qstr(&format!(
-                "storey error: cannot open explorer ({detail})"
-            )));
-        }
+        act(self.as_mut(), ui::nav::open_in_explorer);
     }
 
     pub(crate) fn run_init(mut self: Pin<&mut Self>) {
         use cxx_qt::Threading;
-        if take_busy(self.as_mut()) {
+        let cwd = self.as_ref().rust().inner.cwd.clone();
+        let mut st = super::store::take_state(self.as_mut());
+        if st.take_busy() {
+            super::store::commit(self.as_mut(), st);
             return;
         }
+        super::store::commit(self.as_mut(), st);
         let thread = self.as_ref().qt_thread();
-        let bin = support::path_of(self.as_ref().storey_bin());
-        let cwd = support::path_of(self.as_ref().cwd());
         std::thread::spawn(move || {
-            let client = storey_shared::Client::new(bin);
-            let result = client.call(&["init"], &cwd, |ev| {
-                send_tick(&thread, "init", ev);
+            let logger = storey_core::log::Logger::new(false, false);
+            let tick = thread.clone();
+            logger.tap(move |ev| {
+                if let Some((label, fraction)) = ui::support::progress_label("init", &ev) {
+                    let _ = tick.queue(move |mut obj| {
+                        let mut st = super::store::take_state(obj.as_mut());
+                        st.progress_label = label;
+                        st.progress_fraction = fraction;
+                        super::store::commit(obj.as_mut(), st);
+                    });
+                }
             });
-            let done: Result<(), CliError> = result.map(|_| ());
+            let done = ui::nav::run_init_flow(&std::path::PathBuf::from(&cwd), &logger);
             let _ = thread.queue(move |mut obj| {
-                finish_init(&mut obj, done);
+                let mut st = super::store::take_state(obj.as_mut());
+                st.finish_init(done);
+                super::store::commit(obj.as_mut(), st);
             });
         });
     }
 
     pub(crate) fn run_update(mut self: Pin<&mut Self>) {
         use cxx_qt::Threading;
-        if take_busy(self.as_mut()) {
+        let cwd = self.as_ref().rust().inner.cwd.clone();
+        let mut st = super::store::take_state(self.as_mut());
+        if st.take_busy() {
+            super::store::commit(self.as_mut(), st);
             return;
         }
+        super::store::commit(self.as_mut(), st);
         let thread = self.as_ref().qt_thread();
-        let bin = support::path_of(self.as_ref().storey_bin());
-        let cwd = support::path_of(self.as_ref().cwd());
         std::thread::spawn(move || {
-            let client = storey_shared::Client::new(bin);
-            let done = client.update(&cwd, false, |ev| {
-                send_tick(&thread, "hash", ev);
+            let logger = storey_core::log::Logger::new(false, false);
+            let tick = thread.clone();
+            logger.tap(move |ev| {
+                if let Some((label, fraction)) = ui::support::progress_label("hash", &ev) {
+                    let _ = tick.queue(move |mut obj| {
+                        let mut st = super::store::take_state(obj.as_mut());
+                        st.progress_label = label;
+                        st.progress_fraction = fraction;
+                        super::store::commit(obj.as_mut(), st);
+                    });
+                }
             });
+            let done = ui::nav::run_update_flow(&std::path::PathBuf::from(&cwd), &logger);
             let _ = thread.queue(move |mut obj| {
-                finish_update(&mut obj, done);
+                let mut st = super::store::take_state(obj.as_mut());
+                st.finish_update(done);
+                super::store::commit(obj.as_mut(), st);
             });
         });
-    }
-}
-
-/// Set cwd, clearing the search filter when the directory changes.
-fn move_cwd(mut obj: Pin<&mut ffi::StoreyLibrary>, text: &str) {
-    if support::s(obj.as_ref().cwd()) != text {
-        obj.as_mut().set_filter_query(support::qstr(""));
-        obj.as_mut().set_untagged_only(false);
-    }
-    obj.as_mut().set_cwd(support::qstr(text));
-}
-
-/// Report a blocking enter attempt without navigating (tested).
-pub(crate) fn blocked_message(is_repo: bool) -> Option<String> {
-    if is_repo {
-        Some("storey error: Use file explorer instead".to_string())
-    } else {
-        None
-    }
-}
-
-/// Shorten a CLI error for status lines (tested).
-pub(crate) fn short_detail(message: &str) -> String {
-    let short = storey_shared::explore::short_err(message.to_string());
-    if short.trim().is_empty() {
-        "unknown error".to_string()
-    } else {
-        short
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn blocks_navigation_inside_repo() {
-        assert_eq!(
-            blocked_message(true).as_deref(),
-            Some("storey error: Use file explorer instead")
-        );
-        assert!(blocked_message(false).is_none());
-    }
-
-    #[test]
-    fn shortens_details() {
-        assert_eq!(short_detail("a\nb "), "b");
-        assert_eq!(short_detail(""), "unknown error");
     }
 }

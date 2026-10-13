@@ -24,7 +24,6 @@ verbatim; reimplement per `docs/ARCHITECTURE.md`).
 | App | Dir | Stack | Role |
 | --- | --- | ----- | ---- |
 | `storey` | `apps/cli` | Rust | CLI. Source of truth: CAS + index + views. GUI shells out to it. |
-| `storey-shared` | `crates/storey-shared` | Rust (lib) | Common UI layer: CLI subprocess driver, log parsing, index types. |
 | `core` | `crates/core` | Rust (lib) | CLI logic: index, hashing, views, adoption. |
 | `storey-gui` | `apps/gui` | Rust + cxx-qt (Qt6) | Graphical interface. Thin client over the CLI. |
 
@@ -33,7 +32,7 @@ verbatim; reimplement per `docs/ARCHITECTURE.md`).
 ```text
 .
 ├── apps/cli/        # Rust crate — `storey` binary (thin CLI over `core`)
-├── crates/            # Rust libs (`storey-shared` GUI layer, `core` CLI logic)
+├── crates/            # Rust libs (`core` mechanics, `ui` interface logic)
 ├── apps/gui/        # Rust crate + cxx-qt — `storey-gui` binary (Qt6)
 ├── docs/            # architecture, CLI contract, plugins, releasing
 ├── scripts/         # dist helper script + size-limit check (sh, cross-platform)
@@ -100,8 +99,8 @@ See `docs/ARCHITECTURE.md` for the reimplementation plan and open questions.
 | Task | What it does |
 | ---- | ------------ |
 | `build` / `build:cli` / `build:gui` | Build all / one app |
-| `test` / `test:cli` / `test:core` / `test:shared` / `test:gui` | Test all / one app |
-| `lint` / `lint:cli` / `lint:core` / `lint:shared` / `lint:gui` | Lint all / one app |
+| `test` / `test:cli` / `test:core` / `test:ui` / `test:gui` | Test all / one app |
+| `lint` / `lint:cli` / `lint:core` / `lint:ui` / `lint:gui` | Lint all / one app |
 | `fmt` | `cargo fmt` |
 | `clean` | Remove build outputs |
 | `dev:cli` / `dev:gui` | Run one app from source (`dev:gui` pins the fresh CLI via `--storey-bin`) |

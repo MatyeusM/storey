@@ -7,11 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- All-Rust monorepo in one workspace: CLI ported from Go
+  (`init/update/view/list/tag/rm/mv/restore/status`, byte-identical
+  envelopes verified differentially), GUI links `core` directly
+  instead of spawning a subprocess, and UI logic lives in the new
+  `ui` crate (`apps/gui` is a thin Qt shell). `storey-shared` and
+  the Go tree are gone.
+
 ### Removed
 
 - TUI (`storey-tui`): the terminal client is gone. `apps/tui` and
   its `build/test/lint/dev:tui` tasks, CI job, and release
   artifacts are removed; the monorepo is CLI + GUI only.
+- Go toolchain: `cli_go` and `dist-cli.sh` are gone; releases build
+  the Rust CLI natively per OS (macOS is arm64 throughout now).
 
 ### Fixed
 

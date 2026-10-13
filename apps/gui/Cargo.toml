@@ -1,23 +1,24 @@
 [package]
 name = "storey-gui"
-version = "0.1.0"
-edition = "2024"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
 description = "Qt6 graphical interface to the storey CLI (thin client, shells out to storey)"
-license = "MIT"
 
 [[bin]]
 name = "storey-gui"
 path = "src/main.rs"
 
 [dependencies]
-cxx = "1.0.95"
-cxx-qt = "0.10"
-cxx-qt-lib = { version = "0.10", features = ["qt_full"] }
-clap = { version = "4", features = ["derive"] }
-anyhow = "1"
-serde = { version = "1", features = ["derive"] }
-serde_json = "1"
-storey-shared = { path = "../../crates/storey-shared" }
+cxx.workspace = true
+cxx-qt.workspace = true
+cxx-qt-lib.workspace = true
+clap.workspace = true
+anyhow.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+storey-core.workspace = true
+ui.workspace = true
 
 [build-dependencies]
-cxx-qt-build = { version = "0.10", features = ["link_qt_object_files"] }
+cxx-qt-build.workspace = true

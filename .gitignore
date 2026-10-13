@@ -7,9 +7,6 @@ dist/
 target/
 apps/cli/bin/
 apps/cli/*.exe
-crates/storey-shared/target/
-crates/core/target/
-apps/gui/target/
 *.o
 *.a
 

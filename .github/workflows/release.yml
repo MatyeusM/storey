@@ -24,8 +24,8 @@ jobs:
         with:
           name: cli-${{ matrix.os }}
           path: |
-            apps/cli/target/release/storey
-            apps/cli/target/release/storey.exe
+            target/release/storey
+            target/release/storey.exe
 
   gui:
     strategy:
@@ -54,13 +54,13 @@ jobs:
           $windeployqt = (Get-Command windeployqt.exe -ErrorAction SilentlyContinue)?.Source
           if (-not $windeployqt) { $windeployqt = Join-Path $env:Qt6_DIR '..' '..' 'bin' 'windeployqt.exe' }
           New-Item -ItemType Directory -Force staging/gui-windows | Out-Null
-          Copy-Item apps/gui/target/release/storey-gui.exe staging/gui-windows/
+          Copy-Item target/release/storey-gui.exe staging/gui-windows/
           & $windeployqt --release --no-translations --no-system-d3d-compiler --no-opengl-sw --qmldir apps/gui/qml staging/gui-windows/storey-gui.exe
       - uses: actions/upload-artifact@v7
         with:
           name: gui-${{ matrix.os }}
           path: |
-            apps/gui/target/release/storey-gui
+            target/release/storey-gui
             staging/gui-windows/
 
   publish:

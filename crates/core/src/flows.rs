@@ -36,6 +36,23 @@ pub struct UpdateReport {
     pub problems: Vec<String>,
 }
 
+impl UpdateReport {
+    /// One-line summary for notices (`3 added · 1 removed · 2 problems`).
+    pub fn summary(&self) -> String {
+        let mut parts = vec![
+            format!("{} added", self.added.len()),
+            format!("{} removed", self.removed.len()),
+        ];
+        if self.reverified > 0 {
+            parts.push(format!("{} re-hashed", self.reverified));
+        }
+        if !self.problems.is_empty() {
+            parts.push(format!("{} problems", self.problems.len()));
+        }
+        parts.join(" · ")
+    }
+}
+
 /// Adopted nested libraries: outcome plus shield list.
 struct Adopted {
     skipped: Vec<String>,

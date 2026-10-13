@@ -1,8 +1,8 @@
 # storey-gui
 
-Rust + cxx-qt (Qt6) graphical interface. Thin client over the `storey`
-CLI binary — all CAS/index/view logic stays in `core`; the GUI
-shells out to it through `crates/storey-shared` (see `docs/CLI-CONTRACT.md`).
+Rust + cxx-qt (Qt6) graphical interface. Thin Qt shell over the
+`ui` crate, which holds all Qt-free state and actions over linked
+`core` — no subprocess, no `storey` binary needed.
 
 Win11-style explorer: an icon-only top bar (init outside libraries,
 rescan inside; up; `/Name` + Files|Folders toggle + view-tag
@@ -21,28 +21,13 @@ plugin suggestions.
 - `src/store.rs` — `StoreyLibrary` QObject via the cxx-qt bridge:
   explorer state as `QString`/`bool`/`i32`/`f64` properties (lists
   travel as JSON for `JSON.parse` in QML) and one `#[qinvokable]`
-  per user action. Bodies live in the modules below so the bridge
-  file stays small.
-- `src/nav.rs` — configure, refresh, up/open/enter, `init`/`update`
-  on a worker thread, open-in-explorer, status clearing (plus
-  unconditional dismiss for the decaying hint). Entering a
-  directory inside a library is blocked: the status bar reports
-  `storey error: Use file explorer instead`, decaying after 10s.
-- `src/state.rs` — synchronous re-sync (places, `status`,
-  entries, records, counts), notices/errors in `status_text`
-  only, progress ticks, init/update completion (problem exits
-  still show their report summary).
-- `src/library.rs` — shallow filter (names, plus tag content in a
-  repo), untagged-only toggle (forces the file view; leaving for
-  folders restores the lens), file-view switch, view-tag add/remove
-  via `view --tags=…`, record/file selection for the tag editor.
-- `src/tagging.rs` — tag set, plugin suggestions + apply-all;
-  categories re-sync after writes so the folder-view [+] appears.
-- `src/plugins.rs` — reload rows from `ui.toml`, enable toggles,
-  git-url install (shallow clone into the config plugins dir).
-- `src/support.rs` — Qt-free JSON builders, places, human sizes,
-  plugin rows. Unit-tested (`cargo test`); the `.files/` store and
-  all dotfiles are hidden from every listing.
+  per user action. Each body moves the inner `ui::State` out,
+  calls one `ui` action, and commits the mirror back.
+- `src/nav.rs`, `src/library.rs`, `src/tagging.rs`, `src/plugins.rs`
+  — one thin `impl` block each delegating to `ui`; `init`/`update`
+  run linked `core` flows on a worker thread with live progress.
+- `src/support.rs` — QString read helpers only. All logic (JSON
+  builders, filtering, locks, progress labels) lives in `ui`.
 - `qml/Main.qml` — explorer shell wiring the components below.
 - `qml/Components/` — `TopBar`, `SidePane` (quick access),
   `FileGrid` (large tiles), `StatusBar` (state + counts, transient
@@ -73,7 +58,7 @@ sans_family = "Inter"
 ```
 
 Invalid values (bad hex, non-positive `rem_px`) keep the default —
-see `storey-shared::theme`. Note: `QtObject` has no default
+see `ui::theme`. Note: `QtObject` has no default
 property, so singletons needing child objects (font loaders) must
 use an `Item` root.
 
@@ -108,13 +93,12 @@ brew install qt
 ## Build / run
 
 ```sh
-mise run build:gui          # debug build -> apps/gui/target/debug/storey-gui
+mise run build:gui          # debug build -> target/debug/storey-gui
 mise run build:gui-release  # release build
-mise run dev:gui            # fresh CLI pinned via --storey-bin
+mise run dev:gui            # run from source
 mise run test:gui           # cargo test
 mise run lint:gui           # fmt check + clippy
 ```
 
-`storey-gui [PATH] [--storey-bin BIN]`: binary resolution is flag,
-then `ui.toml`, then a sibling `storey`, then PATH.
-Version: `Cargo.toml` `version` must match repo-root `VERSION`.
+`storey-gui [PATH]`: opens the directory (defaults to cwd).
+Version: workspace `Cargo.toml` `version` must match repo-root `VERSION`.

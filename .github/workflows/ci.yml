@@ -14,7 +14,7 @@ jobs:
       - run: mise run test:cli
       - run: mise run build:cli
 
-  shared:
+  ui:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -25,8 +25,8 @@ jobs:
           rustup toolchain install "$VER" --profile minimal --component rustfmt,clippy
           HOST=$(rustc -vV | sed -n 's/^host: //p')
           echo "$HOME/.rustup/toolchains/$VER-$HOST/bin" >> "$GITHUB_PATH"
-      - run: mise run lint:shared
-      - run: mise run test:shared
+      - run: mise run lint:ui
+      - run: mise run test:ui
 
   gui:
     runs-on: ubuntu-latest

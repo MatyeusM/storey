@@ -14,7 +14,7 @@ pub struct Place {
 }
 
 /// Home-anchored quick places that exist, plus the filesystem root.
-pub(crate) fn quick_places() -> Vec<Place> {
+pub fn quick_places() -> Vec<Place> {
     let home = std::env::var_os("HOME")
         .map(PathBuf::from)
         .or_else(|| std::env::var_os("USERPROFILE").map(PathBuf::from));
@@ -54,7 +54,7 @@ fn push_if_dir(out: &mut Vec<Place>, name: &str, path: &Path) {
 }
 
 /// Places serialized for the side pane.
-pub(crate) fn places_json(places: &[Place]) -> String {
+pub fn places_json(places: &[Place]) -> String {
     let rows: Vec<serde_json::Value> = places
         .iter()
         .map(|p| {
@@ -68,7 +68,7 @@ pub(crate) fn places_json(places: &[Place]) -> String {
 }
 
 /// 1024-based size (`12 B`, `1.5 kB`, `3.2 MB`, `1.1 GB`, `2.0 TB`).
-pub(crate) fn human_size(bytes: u64) -> String {
+pub fn human_size(bytes: u64) -> String {
     const UNITS: [&str; 5] = ["B", "kB", "MB", "GB", "TB"];
     let mut value = bytes as f64;
     let mut unit = 0;
@@ -84,7 +84,7 @@ pub(crate) fn human_size(bytes: u64) -> String {
 }
 
 /// Open `dir` in the OS file explorer (detached, best effort).
-pub(crate) fn open_in_explorer(dir: &Path) -> std::io::Result<()> {
+pub fn open_in_explorer(dir: &Path) -> std::io::Result<()> {
     #[cfg(target_os = "windows")]
     let (bin, arg) = ("explorer", dir.display().to_string());
     #[cfg(target_os = "macos")]
