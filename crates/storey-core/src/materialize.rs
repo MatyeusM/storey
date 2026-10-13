@@ -135,20 +135,32 @@ pub fn count_unsorted(links: &[Link]) -> usize {
         .count()
 }
 
+/// Execution context for `exec_view` (keeps arity small).
+pub struct ExecCtx<'a> {
+    pub root: &'a Path,
+    pub by: &'a [String],
+    pub untracked: Vec<String>,
+    pub orphans: Vec<String>,
+    pub moves: &'a BTreeMap<String, Option<String>>,
+    pub links: &'a [Link],
+    pub logger: &'a Logger,
+    pub abort: &'a AtomicBool,
+}
+
 /// Execute `view`: probe, move, persist, wipe, link, record.
 /// Files have moved before wiping, so the index persists right
 /// after the moves — an abort below still leaves a loadable index.
-pub fn exec_view(
-    root: &Path,
-    ix: &mut Index,
-    by: &[String],
-    untracked: Vec<String>,
-    orphans: Vec<String>,
-    moves: &BTreeMap<String, Option<String>>,
-    links: &[Link],
-    logger: &Logger,
-    abort: &AtomicBool,
-) -> anyhow::Result<FlowDone<ViewReport>> {
+pub fn exec_view(ix: &mut Index, ctx: ExecCtx) -> anyhow::Result<FlowDone<ViewReport>> {
+    let ExecCtx {
+        root,
+        by,
+        untracked,
+        orphans,
+        moves,
+        links,
+        logger,
+        abort,
+    } = ctx;
     std::fs::create_dir_all(root.join(STORE_DIR))?;
     materialize_fs::probe_links(root)?;
     if abort.load(Ordering::Relaxed) {

@@ -36,28 +36,6 @@ fn parse_cat_vals(args: &[String]) -> Result<(String, String, Vec<String>), Stri
     Ok((cat, raw, pos))
 }
 
-/// Resolve a target: emit the failure payload and print, or return
-/// the record position.
-fn resolve(
-    root: &std::path::Path,
-    ix: &Index,
-    arg: &str,
-    command: &str,
-    as_json: bool,
-) -> Result<usize, ()> {
-    match tags::resolve_target(root, ix, arg) {
-        Ok(pos) => Ok(pos),
-        Err(e) => {
-            emit(command, as_json, &e);
-            match e.candidates {
-                Some(c) => fail(&format!("ambiguous id prefix {arg:?}: {}", c.join(", "))),
-                None => fail(&e.error),
-            };
-            Err(())
-        }
-    }
-}
-
 /// `tag get`: categories, file tags, or values.
 pub fn cmd_get(args: &[String], as_json: bool) -> i32 {
     let (cat, raw, pos) = match parse_cat_vals(args) {
@@ -111,7 +89,7 @@ fn emit_for_target(
     cat: &str,
     as_json: bool,
 ) -> i32 {
-    let idx = match resolve(root, ix, &pos[0], "tag", as_json) {
+    let idx = match crate::resolve_target(root, ix, &pos[0], "tag", as_json) {
         Ok(idx) => idx,
         Err(()) => return EXIT_FAILURE,
     };
@@ -153,7 +131,7 @@ pub fn cmd_write(args: &[String], as_json: bool, merge: bool) -> i32 {
         Err(e) => return usage_err(&format!("tag: {e}")),
     };
     locked_write(as_json, &cat, |root, ix| {
-        let idx = resolve(root, ix, &pos[0], "tag", as_json)?;
+        let idx = crate::resolve_target(root, ix, &pos[0], "tag", as_json)?;
         let rec = &mut ix.files[idx];
         tags::apply_values(rec, &cat, vals, merge);
         Ok(idx)
@@ -173,7 +151,7 @@ pub fn cmd_remove(args: &[String], as_json: bool) -> i32 {
         return usage_err("tag remove: --values needs --category");
     }
     locked_write(as_json, &cat, |root, ix| {
-        let idx = resolve(root, ix, &pos[0], "tag", as_json)?;
+        let idx = crate::resolve_target(root, ix, &pos[0], "tag", as_json)?;
         tags::apply_remove(&mut ix.files[idx], &cat, &raw).map_err(WriteErr::Usage)?;
         Ok(idx)
     })

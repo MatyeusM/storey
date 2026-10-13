@@ -6,9 +6,12 @@
 //! 0 ok, 1 failure (problems report), 2 usage, 130 interrupted.
 
 use clap::{Parser, Subcommand};
-use storey_core::ops;
 
 mod cmd_intake;
+mod cmd_mv;
+mod cmd_read;
+mod cmd_restore;
+mod cmd_rm;
 mod cmd_tag;
 mod cmd_view;
 mod cmd_view_report;
@@ -61,6 +64,25 @@ enum Commands {
         #[arg(trailing_var_arg = true, allow_hyphen_values = true)]
         args: Vec<String>,
     },
+    /// Delete links, file, and record. Permanent.
+    #[command(alias = "rm")]
+    Remove {
+        /// Raw arguments (one target plus --dry-run).
+        #[arg(trailing_var_arg = true, allow_hyphen_values = true)]
+        args: Vec<String>,
+    },
+    /// Rename display name, file, and view links.
+    Mv {
+        /// Raw arguments (target, new name, plus --dry-run).
+        #[arg(trailing_var_arg = true, allow_hyphen_values = true)]
+        args: Vec<String>,
+    },
+    /// Remove view artifacts, move objects back.
+    Restore {
+        /// Raw arguments (--force, --dry-run).
+        #[arg(trailing_var_arg = true, allow_hyphen_values = true)]
+        args: Vec<String>,
+    },
     /// All records, optionally one category=value filter or --untagged.
     List {
         /// Only records with no tags (excludes filters).
@@ -95,10 +117,15 @@ fn run() -> i32 {
         Commands::Update { verify, dry_run } => {
             cmd_intake::cmd_update(as_json, *verify, *dry_run, &logger)
         }
-        Commands::Status => cmd_status(as_json, &logger),
+        Commands::Status => cmd_read::cmd_status(as_json, &logger),
         Commands::Tag { args } => cmd_tag::cmd_tag(args, as_json),
         Commands::View { args } => cmd_view::cmd_view(args, as_json, &logger),
-        Commands::List { untagged, filter } => cmd_list(as_json, *untagged, filter.as_deref()),
+        Commands::Remove { args } => cmd_rm::cmd_rm(args, as_json, &logger),
+        Commands::Mv { args } => cmd_mv::cmd_mv(args, as_json, &logger),
+        Commands::Restore { args } => cmd_restore::cmd_restore(args, as_json, &logger),
+        Commands::List { untagged, filter } => {
+            cmd_read::cmd_list(as_json, *untagged, filter.as_deref())
+        }
     }
 }
 
@@ -122,90 +149,6 @@ struct Envelope<'a, T: serde::Serialize> {
     data: &'a T,
 }
 
-/// `storey status`: read-only overview for humans and UIs.
-fn cmd_status(as_json: bool, _logger: &storey_core::log::Logger) -> i32 {
-    let cwd = match std::env::current_dir() {
-        Ok(dir) => dir,
-        Err(e) => return fail(&format!("{e}")),
-    };
-    let root = match storey_core::library::find_root(&cwd) {
-        Ok(root) => root,
-        Err(_) => {
-            eprintln!("fatal: not a storey repository");
-            return EXIT_USAGE;
-        }
-    };
-    match ops::status_at(&root) {
-        Ok(rep) => {
-            emit("status", as_json, &rep);
-            if !as_json {
-                let view = if rep.view.is_empty() {
-                    "(none)".to_string()
-                } else {
-                    rep.view.join(",")
-                };
-                println!(
-                    "storey repository at {}\nindexed: {}\nstored: {}\nuntracked: {}\nview by: {}",
-                    rep.root, rep.indexed, rep.stored, rep.untracked, view
-                );
-            }
-            EXIT_OK
-        }
-        Err(e) => fail(&format!("{e}")),
-    }
-}
-
-/// `storey list`: records with an optional single filter.
-fn cmd_list(as_json: bool, untagged: bool, filter: Option<&str>) -> i32 {
-    let filter = match parse_list_filter(untagged, filter) {
-        Ok(f) => f,
-        Err(msg) => return usage_err(&msg),
-    };
-    let cwd = match std::env::current_dir() {
-        Ok(dir) => dir,
-        Err(e) => return fail(&format!("{e}")),
-    };
-    let root = match storey_core::library::find_root(&cwd) {
-        Ok(root) => root,
-        Err(e) => return usage_err(&format!("{e}")),
-    };
-    let ix = match storey_core::index::Index::load(&root) {
-        Ok(ix) => ix,
-        Err(e) => return fail(&format!("{e}")),
-    };
-    let matched = ops::list_records(&ix.files, &filter);
-    emit("list", as_json, &matched);
-    if !as_json {
-        for rec in &matched {
-            println!(
-                "{}  {}  {}  {}",
-                ops::short_id(&rec.id),
-                rec.location(),
-                rec.size,
-                ops::format_tags(&rec.tags)
-            );
-        }
-    }
-    EXIT_OK
-}
-
-/// Parse list selection: at most one `category=value`, and
-/// `--untagged` excludes filters.
-fn parse_list_filter(untagged: bool, filter: Option<&str>) -> Result<ops::ListFilter, String> {
-    match (untagged, filter) {
-        (true, Some(_)) => Err("list: --untagged excludes filters".into()),
-        (true, None) => Ok(ops::ListFilter::Untagged),
-        (false, None) => Ok(ops::ListFilter::All),
-        (false, Some(raw)) => match raw.split_once('=') {
-            Some((cat, val)) if !cat.is_empty() && !val.is_empty() => Ok(ops::ListFilter::CatVal {
-                cat: cat.into(),
-                val: val.into(),
-            }),
-            _ => Err("list: filter must be category=value".into()),
-        },
-    }
-}
-
 /// Runtime failure (exit 1).
 fn fail(msg: &str) -> i32 {
     eprintln!("storey: {msg}");
@@ -216,6 +159,28 @@ fn fail(msg: &str) -> i32 {
 fn usage_err(msg: &str) -> i32 {
     eprintln!("storey: {msg}");
     EXIT_USAGE
+}
+
+/// Resolve a target: emit the failure payload and print, or return
+/// the record position.
+fn resolve_target(
+    root: &std::path::Path,
+    ix: &storey_core::index::Index,
+    arg: &str,
+    command: &str,
+    as_json: bool,
+) -> Result<usize, ()> {
+    match storey_core::tags::resolve_target(root, ix, arg) {
+        Ok(pos) => Ok(pos),
+        Err(e) => {
+            emit(command, as_json, &e);
+            match e.candidates {
+                Some(c) => fail(&format!("ambiguous id prefix {arg:?}: {}", c.join(", "))),
+                None => fail(&e.error),
+            };
+            Err(())
+        }
+    }
 }
 
 /// Trap Ctrl-C (plus SIGTERM on unix) into a flag the flows poll.

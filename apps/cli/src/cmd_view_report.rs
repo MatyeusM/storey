@@ -17,17 +17,11 @@ pub(crate) fn dry_view(
         .map(|(k, v)| (k.clone(), v.clone().unwrap_or_default()))
         .collect();
     rep.plan = materialize::link_paths(links);
+    // The dry summary counts planned moves, like the live one counts
+    // performed moves.
+    rep.moved = rep.moves.len();
     emit("view", as_json, &rep);
-    print_summary(
-        as_json,
-        by,
-        rep.moves.len(),
-        0,
-        rep.links,
-        0,
-        rep.unsorted,
-        true,
-    );
+    print_summary(as_json, by, &rep, true);
     EXIT_OK
 }
 
@@ -52,16 +46,7 @@ pub(crate) fn orphan_lines(orphans: &[String]) -> Vec<String> {
         .collect()
 }
 
-pub(crate) fn print_summary(
-    as_json: bool,
-    by: &[String],
-    moved: usize,
-    purged: usize,
-    links: usize,
-    link_errors: usize,
-    unsorted: usize,
-    dry: bool,
-) {
+pub(crate) fn print_summary(as_json: bool, by: &[String], rep: &ViewReport, dry: bool) {
     if as_json {
         return;
     }
@@ -70,10 +55,10 @@ pub(crate) fn print_summary(
         "view by {}{}\nmoved: {}\npurged (duplicates): {}\nlinks: {}\nlink errors: {}\nunsorted: {}",
         by.join(","),
         suffix,
-        moved,
-        purged,
-        links,
-        link_errors,
-        unsorted
+        rep.moved,
+        rep.purged.len(),
+        rep.links,
+        rep.link_errors.len(),
+        rep.unsorted
     );
 }

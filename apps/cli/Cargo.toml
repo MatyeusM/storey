@@ -11,6 +11,7 @@ path = "src/main.rs"
 
 [dependencies]
 storey-core = { path = "../../crates/storey-core" }
+anyhow = "1"
 clap = { version = "4", features = ["derive"] }
 serde = { version = "1" }
 serde_json = "1"

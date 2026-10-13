@@ -15,5 +15,8 @@ pub mod log;
 pub mod materialize;
 pub mod materialize_fs;
 pub mod ops;
+pub mod remove;
+pub mod rename;
+pub mod restore;
 pub mod tags;
 pub mod views;

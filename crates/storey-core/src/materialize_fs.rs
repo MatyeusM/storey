@@ -122,12 +122,12 @@ pub fn create_links(
             continue;
         };
         let abs = root.join(from_slash(&link.view_path));
-        if let Some(parent) = abs.parent() {
-            if let Err(e) = std::fs::create_dir_all(parent) {
-                failed.push(format!("{}: {e}", link.view_path));
-                logger.warn(format!("view: {}: {e}", link.view_path));
-                continue;
-            }
+        if let Some(parent) = abs.parent()
+            && let Err(e) = std::fs::create_dir_all(parent)
+        {
+            failed.push(format!("{}: {e}", link.view_path));
+            logger.warn(format!("view: {}: {e}", link.view_path));
+            continue;
         }
         let store = root.join(from_slash(&rec.stored_rel));
         match views::create_link(&store, &abs) {

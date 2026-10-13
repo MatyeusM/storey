@@ -116,29 +116,20 @@ pub fn cmd_view(args: &[String], as_json: bool, logger: &Logger) -> i32 {
         return dry_view(as_json, &by, &planned.moves, &planned.links, planned.rep);
     }
     let abort = crate::trap_abort();
-    match materialize::exec_view(
-        &opened.root,
-        &mut opened.ix,
-        &by,
-        planned.rep.untracked,
-        planned.rep.orphans,
-        &planned.moves,
-        &planned.links,
+    let ctx = materialize::ExecCtx {
+        root: &opened.root,
+        by: &by,
+        untracked: planned.rep.untracked,
+        orphans: planned.rep.orphans,
+        moves: &planned.moves,
+        links: &planned.links,
         logger,
-        &abort,
-    ) {
+        abort: &abort,
+    };
+    match materialize::exec_view(&mut opened.ix, ctx) {
         Ok(FlowDone::Done(done)) => {
             emit("view", as_json, &done);
-            print_summary(
-                as_json,
-                &by,
-                done.moved,
-                done.purged.len(),
-                done.links,
-                done.link_errors.len(),
-                done.unsorted,
-                false,
-            );
+            print_summary(as_json, &by, &done, false);
             EXIT_OK
         }
         Ok(FlowDone::Aborted) => crate::emergency_save(&opened.root, &opened.ix),
