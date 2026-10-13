@@ -1,7 +1,7 @@
 # Architecture (reimplementation plan)
 
 Reference: `.reference/` (Java+ Swing `Clanker Sort`). Do not port it
-line-for-line — reimplement the concept in Go (CLI) with a thin Rust UI
+line-for-line — reimplement the concept in Rust (CLI) with a thin Rust UI
 client sharing one subprocess-driving library. This doc records
 decisions; items below are **locked** once implemented.
 
@@ -24,7 +24,7 @@ A managed library folder contains:
 
 ## Process architecture
 
-- `storey` (Go CLI) owns **all** logic: scan/hash, index read/write,
+- `storey` (Rust CLI) owns **all** logic: scan/hash, index read/write,
   nested-library adoption, view materialization, link strategy,
   filename validation, OS open helpers. Hashing runs on a worker pool
   (NumCPU-1, one core left for UI/OS) and reports progress on stderr
@@ -77,7 +77,7 @@ A managed library folder contains:
       130); `view` refuses filesystems with no link support after
       a pre-move probe.
 - [x] Rescan problems → report-only, exit 1 when problems exist.
-- [x] Hashing → Go worker pool, NumCPU-1 (one core left for UI/OS); progress as JSONL events
+- [x] Hashing → worker pool, NumCPU-1 (one core left for UI/OS); progress as JSONL events
       on stderr for GUI consumption, streamed live (never batched at exit).
       Unreadable files are report-only problems, never fatal.
 - [x] Scan hygiene → the walk skips OS junk (`.DS_Store`,

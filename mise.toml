@@ -1,5 +1,4 @@
 [tools]
-go = "latest"
 rust = "latest"
 
 [settings]
@@ -19,20 +18,20 @@ depends = ["build:cli", "build:gui"]
 
 [tasks.test]
 description = "Test all apps (cli + shared + gui)"
-depends = ["test:cli", "test:cli-go", "test:core", "test:shared", "test:gui"]
+depends = ["test:cli", "test:core", "test:shared", "test:gui"]
 
 [tasks.lint]
 description = "Lint all apps"
-depends = ["lint:cli", "lint:cli-go", "lint:core", "lint:shared", "lint:gui"]
+depends = ["lint:cli", "lint:core", "lint:shared", "lint:gui"]
 
 [tasks.fmt]
-description = "Format Go + Rust sources"
-run = "gofmt -w cli_go && cargo fmt --manifest-path apps/cli/Cargo.toml && cargo fmt --manifest-path crates/core/Cargo.toml && cargo fmt --manifest-path crates/storey-shared/Cargo.toml && cargo fmt --manifest-path apps/gui/Cargo.toml"
-run_windows = "gofmt -w cli_go && cargo fmt --manifest-path apps\\cli\\Cargo.toml && cargo fmt --manifest-path crates\\core\\Cargo.toml && cargo fmt --manifest-path crates\\storey-shared\\Cargo.toml && cargo fmt --manifest-path apps\\gui\\Cargo.toml"
+description = "Format Rust sources"
+run = "cargo fmt --manifest-path apps/cli/Cargo.toml && cargo fmt --manifest-path crates/core/Cargo.toml && cargo fmt --manifest-path crates/storey-shared/Cargo.toml && cargo fmt --manifest-path apps/gui/Cargo.toml"
+run_windows = "cargo fmt --manifest-path apps\\cli\\Cargo.toml && cargo fmt --manifest-path crates\\core\\Cargo.toml && cargo fmt --manifest-path crates\\storey-shared\\Cargo.toml && cargo fmt --manifest-path apps\\gui\\Cargo.toml"
 
 [tasks.clean]
 description = "Remove build outputs"
-run = "rm -rf build dist cli_go/bin apps/cli/target crates/storey-shared/target crates/core/target apps/gui/target"
+run = "rm -rf build dist apps/cli/target crates/storey-shared/target crates/core/target apps/gui/target"
 run_windows = "if exist build rmdir /s /q build & if exist dist rmdir /s /q dist"
 
 [tasks.dev]
@@ -56,27 +55,15 @@ description = "cargo fmt check + clippy for the CLI"
 run = "cargo fmt --manifest-path apps/cli/Cargo.toml -- --check && cargo clippy --manifest-path apps/cli/Cargo.toml -- -D warnings && sh scripts/check-limits.sh apps/cli"
 run_windows = "cargo fmt --manifest-path apps\\cli\\Cargo.toml -- --check && cargo clippy --manifest-path apps\\cli\\Cargo.toml -- -D warnings && sh scripts/check-limits.sh apps/cli"
 
+[tasks."build:cli-release"]
+description = "Release build of the CLI (per-OS native)"
+run = "cargo build --release --manifest-path apps/cli/Cargo.toml"
+run_windows = "cargo build --release --manifest-path apps\\cli\\Cargo.toml"
+
 [tasks."dev:cli"]
 description = "Run the CLI from source"
 run = "cargo run --manifest-path apps/cli/Cargo.toml -- --help"
 run_windows = "cargo run --manifest-path apps\\cli\\Cargo.toml -- --help"
-
-# ---------- cli-go (Go reference, deleted at parity) ----------
-
-[tasks."build:cli-go"]
-description = "Build reference Go CLI (contract comparison only)"
-run = "go -C cli_go build -o bin/storey ./cmd/storey"
-run_windows = "go -C cli_go build -o bin\\storey.exe .\\cmd\\storey"
-
-[tasks."test:cli-go"]
-description = "Vet + test the reference Go CLI"
-run = "go -C cli_go vet ./... && go -C cli_go test ./..."
-run_windows = "go -C cli_go vet ./... && go -C cli_go test ./..."
-
-[tasks."lint:cli-go"]
-description = "gofmt check + go vet + size limits for the reference CLI"
-run = "gofmt -l cli_go && go -C cli_go vet ./... && sh scripts/check-limits.sh cli_go"
-run_windows = "gofmt -l cli_go && go -C cli_go vet ./... && sh scripts/check-limits.sh cli_go"
 
 # ---------- crates (Rust libs) ----------
 
@@ -127,12 +114,9 @@ run_windows = "cargo fmt --manifest-path apps\\gui\\Cargo.toml -- --check && car
 [tasks."dev:gui"]
 description = "Build the CLI, run the GUI against the fresh binary (needs Qt6 at build time)"
 depends = ["build:cli"]
-run = "cargo run --manifest-path apps/gui/Cargo.toml -- --storey-bin {{config_root}}/cli_go/bin/storey"
-run_windows = "cargo run --manifest-path apps\\gui\\Cargo.toml -- --storey-bin {{config_root}}/cli_go/bin/storey.exe"
+run = "cargo run --manifest-path apps/gui/Cargo.toml -- --storey-bin {{config_root}}/apps/cli/bin/storey"
+run_windows = "cargo run --manifest-path apps\\gui\\Cargo.toml -- --storey-bin {{config_root}}/apps/cli/bin/storey.exe"
 
 # ---------- packaging ----------
 
-[tasks."dist:cli"]
-description = "Cross-compile CLI for linux/windows/darwin (amd64+arm64) into dist/"
-run = "sh scripts/dist-cli.sh"
-run_windows = "echo dist:cli runs under sh (Git Bash) on Windows; run sh scripts/dist-cli.sh"
+

@@ -23,8 +23,7 @@ verbatim; reimplement per `docs/ARCHITECTURE.md`).
 
 | App | Dir | Stack | Role |
 | --- | --- | ----- | ---- |
-| `storey` | `cli_go` | Go | Reference CLI (source of truth during the Rust port). GUI shells out to it. |
-| `storey` | `apps/cli` | Rust | New CLI over `core` (all commands ported, differentials green). |
+| `storey` | `apps/cli` | Rust | CLI. Source of truth: CAS + index + views. GUI shells out to it. |
 | `storey-shared` | `crates/storey-shared` | Rust (lib) | Common UI layer: CLI subprocess driver, log parsing, index types. |
 | `core` | `crates/core` | Rust (lib) | CLI logic: index, hashing, views, adoption. |
 | `storey-gui` | `apps/gui` | Rust + cxx-qt (Qt6) | Graphical interface. Thin client over the CLI. |
@@ -33,7 +32,7 @@ verbatim; reimplement per `docs/ARCHITECTURE.md`).
 
 ```text
 .
-├── cli_go/          # Go reference CLI (deleted at parity) — `storey` binary
+├── apps/cli/        # Rust crate — `storey` binary (thin CLI over `core`)
 ├── crates/            # Rust libs (`storey-shared` GUI layer, `core` CLI logic)
 ├── apps/gui/        # Rust crate + cxx-qt — `storey-gui` binary (Qt6)
 ├── docs/            # architecture, CLI contract, plugins, releasing
@@ -47,25 +46,25 @@ verbatim; reimplement per `docs/ARCHITECTURE.md`).
 
 ## Requirements
 
-- [mise](https://mise.jdx.dev/) — Go and Rust track `latest`
-  in `mise.toml` and install automatically. **Qt6 (>= 6.6) is a system
+- [mise](https://mise.jdx.dev/) — Rust tracks `latest`
+  in `mise.toml` and installs automatically. **Qt6 (>= 6.6) is a system
   dependency** for the GUI (not via mise): install `qt6-base` +
   `qt6-declarative` from your OS package manager (see `apps/gui/README.md`).
-- No other downloads needed for `build:cli` beyond `go` module
-  and `cargo` crate fetches (`build:gui` additionally needs Qt6 dev files).
+- No other downloads needed beyond `cargo` crate fetches
+  (`build:gui` additionally needs Qt6 dev files).
 
 ## Quickstart
 
 ```sh
 mise install          # one-time toolchain install
-mise run build:cli    # Go reference CLI -> cli_go/bin/storey
+mise run build:cli    # Rust CLI -> apps/cli/bin/storey
 mise run build:gui    # Qt GUI (needs system Qt6)
 mise run build        # all
 mise run test         # cli + shared + gui suites
 mise run lint         # cli + shared + gui checks
 ```
 
-Per-app details: `cli_go/README.md`, `apps/gui/README.md`.
+Per-app details: `apps/cli/README.md`, `apps/gui/README.md`.
 
 ## Install a release
 
@@ -75,8 +74,7 @@ each holds the `storey` CLI and `storey-gui`:
 
 - **Linux**: needs system Qt6 for the GUI (`sudo apt install
   qt6-base` or your distro's equivalent).
-- **macOS**: `brew install qt` for the GUI (the GUI build is
-  arm64; the bundled CLI is amd64 and runs under Rosetta).
+- **macOS**: `brew install qt` for the GUI (arm64 binaries).
 - **Windows**: runs as-is — the needed Qt libraries ship inside
   the zip.
 
@@ -102,13 +100,13 @@ See `docs/ARCHITECTURE.md` for the reimplementation plan and open questions.
 | Task | What it does |
 | ---- | ------------ |
 | `build` / `build:cli` / `build:gui` | Build all / one app |
-| `test` / `test:cli` / `test:shared` / `test:gui` | Test all / one app |
-| `lint` / `lint:cli` / `lint:shared` / `lint:gui` | Lint all / one app |
-| `fmt` | `gofmt -w` + `cargo fmt` |
+| `test` / `test:cli` / `test:core` / `test:shared` / `test:gui` | Test all / one app |
+| `lint` / `lint:cli` / `lint:core` / `lint:shared` / `lint:gui` | Lint all / one app |
+| `fmt` | `cargo fmt` |
 | `clean` | Remove build outputs |
 | `dev:cli` / `dev:gui` | Run one app from source (`dev:gui` pins the fresh CLI via `--storey-bin`) |
 | `build:gui-release` | Release-mode build |
-| `dist:cli` | Cross-compile CLI matrix into `dist/` |
+| `build:cli-release` | Release-mode CLI build (per-OS native) |
 
 All task bodies are single-tool invocations (`&&`-chained) with
 `run_windows` overrides where shells differ — same convention as
@@ -116,11 +114,11 @@ All task bodies are single-tool invocations (`&&`-chained) with
 
 ## Releases (Windows / macOS / Linux)
 
-- Tag `vX.Y.Z` → `.github/workflows/release.yml` builds CLI (`go build`
-  matrix), GUI
+- Tag `vX.Y.Z` → `.github/workflows/release.yml` builds CLI
+  (`mise run build:cli-release` per OS), GUI
   (`mise run build:gui-release` per OS with Qt installed per-OS),
   uploads artifacts + `SHA256SUMS` to a GitHub Release.
-- `VERSION` file + per-app version sources (`cli_go/internal/version`,
+- `VERSION` file + per-app version sources (`apps/cli/Cargo.toml`,
   `apps/gui/Cargo.toml`) must agree — see
   `docs/RELEASING.md`.
 

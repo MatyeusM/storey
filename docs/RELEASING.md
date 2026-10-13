@@ -4,7 +4,6 @@ Single version source: repo-root `VERSION` (currently `0.1.0`). Release flow:
 
 1. Keep `CHANGELOG.md` `[Unreleased]` current as work lands.
 2. Bump `VERSION` and the two per-app versions together:
-   - `cli_go/internal/version/version.go` literal,
    - `apps/cli/Cargo.toml` `version`,
    - `crates/storey-shared/Cargo.toml` `version` and `apps/gui/Cargo.toml`
      `version` (UIs share the version via `storey-shared`).
@@ -17,8 +16,7 @@ Single version source: repo-root `VERSION` (currently `0.1.0`). Release flow:
    using the new version section as patch notes
    (`sh scripts/release-notes.sh` fails the job instead of shipping
    empty notes, so step 3 is load-bearing):
-   - CLI: `go build` for `linux`, `windows`, `darwin` (`amd64`;
-     see `scripts/dist-cli.sh`).
+   - CLI: `mise run build:cli-release` per runner OS (native arch).
    - GUI: `mise run build:gui-release` per runner OS (Qt installed
      per-OS in the workflow). On Windows the needed Qt DLLs/QML
      plugins are bundled next to the exe with `windeployqt`, so the
@@ -28,6 +26,5 @@ Single version source: repo-root `VERSION` (currently `0.1.0`). Release flow:
    - macOS runners are arm64, so `storey-macos.zip` mixes an arm64 GUI
      binary with the amd64 CLI (Rosetta covers it).
 
-`go build` stamps the version with
-`-ldflags "-X .../internal/version.Version=vX.Y.Z"`; the literal in
-`version.go` is the fallback for local builds.
+The CLI version comes from `apps/cli/Cargo.toml` (via
+`CARGO_PKG_VERSION`); keep it in sync with repo-root `VERSION`.

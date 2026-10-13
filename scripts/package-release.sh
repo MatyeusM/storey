@@ -34,19 +34,19 @@ stage_cp() {
 
 # linux (amd64 throughout)
 mkdir -p "$stage/linux"
-stage_cp cli-linux-amd64 storey "$stage/linux/storey"
+stage_cp cli-ubuntu-latest storey "$stage/linux/storey"
 stage_cp gui-ubuntu-latest storey-gui "$stage/linux/storey-gui"
 (cd "$stage/linux" && zip -q "$out_abs/storey-linux.zip" storey storey-gui)
 
 # windows (amd64 throughout; GUI ships its Qt bundle)
 mkdir -p "$stage/windows"
-stage_cp cli-windows-amd64 storey.exe "$stage/windows/storey.exe"
+stage_cp cli-windows-latest storey.exe "$stage/windows/storey.exe"
 cp -r "$in/gui-windows-latest/." "$stage/windows/"
 (cd "$stage/windows" && zip -q -r "$out_abs/storey-windows.zip" .)
 
 # macos (GUI is arm64 runner build; the CLI stays amd64)
 mkdir -p "$stage/macos"
-stage_cp cli-darwin-amd64 storey "$stage/macos/storey"
+stage_cp cli-macos-latest storey "$stage/macos/storey"
 stage_cp gui-macos-latest storey-gui "$stage/macos/storey-gui"
 (cd "$stage/macos" && zip -q "$out_abs/storey-macos.zip" storey storey-gui)
 

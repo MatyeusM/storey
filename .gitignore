@@ -5,8 +5,6 @@ local/
 build/
 dist/
 target/
-cli_go/bin/
-cli_go/*.exe
 apps/cli/bin/
 apps/cli/*.exe
 crates/storey-shared/target/

@@ -2,14 +2,13 @@
 
 ## Workflow
 
-- mise-first: `mise install` once, then `mise run build|test|lint` (per-app: `build:cli`, `test:shared`, `lint:gui`, ...). mise provides Go + Rust (`latest`); **Qt6 (>= 6.6) is a system dep** for the GUI (`qt6-base` + `qt6-declarative`), found at build time via `qmake`.
+- mise-first: `mise install` once, then `mise run build|test|lint` (per-app: `build:cli`, `test:shared`, `lint:gui`, ...). mise provides Rust (`latest`); **Qt6 (>= 6.6) is a system dep** for the GUI (`qt6-base` + `qt6-declarative`), found at build time via `qmake`.
 - Task bodies must stay single-tool invocations with `run_windows` overrides — no implementation in `mise.toml`.
-- Single version source: repo-root `VERSION`; keep in sync with `cli_go/internal/version/version.go`, `apps/cli/Cargo.toml`, `crates/storey-shared/Cargo.toml`, `apps/gui/Cargo.toml` (see `docs/RELEASING.md`).
+- Single version source: repo-root `VERSION`; keep in sync with `apps/cli/Cargo.toml`, `crates/storey-shared/Cargo.toml`, `apps/gui/Cargo.toml` (see `docs/RELEASING.md`).
 
 ## Layout
 
-- `cli_go` (Go reference, stdlib only): behavioral source of truth — CAS + index + views. Being ported to `crates/core` + Rust `apps/cli`; delete once the user signs off on parity.
-- `apps/cli` (Rust bin `storey`): thin CLI over `core` — arg parsing plus response printing only (port in progress; see `cli_go` for the reference).
+- `apps/cli` (Rust bin `storey`): thin CLI over `core` — arg parsing plus response printing only.
 - `crates/storey-shared` (Rust lib `storey-shared`): common GUI layer — CLI subprocess driver, log parsing, record model, tag sources.
 - `crates/core` (Rust lib `core`): CLI logic — index, hashing, views, adoption (port of the Go CLI internals).
 - `apps/gui` (Rust/cxx-qt 0.10): thin client. It shells out to `storey --json` and **never touches the store or index directly**.
@@ -29,15 +28,9 @@
 ## Size rules (all languages)
 
 - Files ≤ 300 lines, functions ≤ 50 lines — enforced by `scripts/check-limits.sh`
-  (Go + Rust; brace-count heuristic, so keep braces out of strings/comments).
+  (Rust; brace-count heuristic, so keep braces out of strings/comments).
   Each `lint:*` task runs it for its own app: `sh scripts/check-limits.sh apps/<app>`.
   Keep new code split into small modules/packages.
-
-## Go rules
-
-- Stdlib only (no third-party dependencies).
-- Verify with `go -C cli_go vet ./... && go -C cli_go test ./...`; focused: `go -C cli_go test ./internal/index/ -run TestLoad -v`.
-- Tests use `chdir(t, root)` + `mustRun(t, ...)` helpers (`cmd/storey/*_test.go`); use `testLogger()` (quiet) for direct `cmdX` calls so progress output doesn't pollute test logs.
 
 ## Rust rules
 

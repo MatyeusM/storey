@@ -1,7 +1,7 @@
 # storey-gui
 
 Rust + cxx-qt (Qt6) graphical interface. Thin client over the `storey`
-CLI binary — all CAS/index/view logic stays in `cli_go` (Go reference; Rust port in progress); the GUI
+CLI binary — all CAS/index/view logic stays in `core`; the GUI
 shells out to it through `crates/storey-shared` (see `docs/CLI-CONTRACT.md`).
 
 Win11-style explorer: an icon-only top bar (init outside libraries,
@@ -91,7 +91,7 @@ use an `Item` root.
 
 ## System dependency: Qt6 (not via mise)
 
-`mise.toml` provides Go + Rust. Qt6 comes from the OS (needed at
+`mise.toml` provides Rust. Qt6 comes from the OS (needed at
 build time by `cxx-qt-build`, which finds it via `qmake`):
 
 ```sh

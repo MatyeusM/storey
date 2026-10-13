@@ -14,25 +14,18 @@ jobs:
   cli:
     strategy:
       matrix:
-        include:
-          - os: ubuntu-latest
-            goos: linux
-            goarch: amd64
-          - os: windows-latest
-            goos: windows
-            goarch: amd64
-          - os: macos-latest
-            goos: darwin
-            goarch: amd64
+        os: [ubuntu-latest, windows-latest, macos-latest]
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v7
       - uses: jdx/mise-action@v5
-      - run: sh scripts/dist-cli.sh "${GITHUB_REF_NAME#v}"
+      - run: mise run build:cli-release
       - uses: actions/upload-artifact@v7
         with:
-          name: cli-${{ matrix.goos }}-${{ matrix.goarch }}
-          path: dist/
+          name: cli-${{ matrix.os }}
+          path: |
+            apps/cli/target/release/storey
+            apps/cli/target/release/storey.exe
 
   gui:
     strategy:

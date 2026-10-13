@@ -1,6 +1,6 @@
 #!/usr/bin/env sh
 # Enforce size limits: files <= 300 lines, functions <= 50 lines.
-# Applies to Go (cli_go) and Rust (crates/*, apps/gui).
+# Applies to Rust (crates/*, apps/*).
 # Takes directories to scan; defaults to all three apps.
 # Function length uses a brace-count heuristic, so unbalanced braces in
 # string literals or comments can fool it — keep code clean instead of
@@ -8,7 +8,7 @@
 set -eu
 max_file=300
 max_func=50
-dirs="${*:-cli_go crates/storey-shared crates/core apps/gui}"
+dirs="${*:-crates apps/gui}"
 bad=0
 files=$(find $dirs \( -name '*.go' -o -name '*.rs' \) -not -path '*/bin/*' -not -path '*/target/*' | sort)
 for f in $files; do
