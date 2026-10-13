@@ -9,7 +9,7 @@
 ## Layout
 
 - `apps/cli` (Rust bin `storey`): thin CLI over `core` — arg parsing plus response printing only.
-- `crates/ui` (Rust lib `ui`): interface logic — Qt-free state and actions over `core` (settings, plugins, theming inputs). `apps/gui` is its thin Qt/QML shell.
+- `crates/ui` (Rust lib `storey-ui`): interface logic — Qt-free state and actions over `core` (settings, plugins, theming inputs). `apps/gui` is its thin Qt/QML shell.
 - `crates/core` (Rust lib `core`): CLI logic — index, hashing, views, adoption (port of the Go CLI internals).
 - `apps/gui` (Rust/cxx-qt 0.10): thin Qt/QML shell over `ui` (linked `core`, no subprocess). It **never touches the store or index directly** — all logic lives in crates.
 - `.reference/` is a behavioral reference only — do not copy from it verbatim.

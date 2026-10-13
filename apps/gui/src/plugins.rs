@@ -11,7 +11,7 @@ use crate::{
 
 impl ffi::StoreyLibrary {
     pub(crate) fn reload_plugins(mut self: Pin<&mut Self>) {
-        act(self.as_mut(), ui::state::State::reload_plugins);
+        act(self.as_mut(), storey_ui::state::State::reload_plugins);
     }
 
     pub(crate) fn set_plugin_enabled(mut self: Pin<&mut Self>, index: i32, enabled: bool) {

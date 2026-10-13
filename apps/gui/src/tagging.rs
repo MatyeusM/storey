@@ -1,4 +1,4 @@
-//! Thin tag-editor invokables: each mirrors one `ui::tagging` action.
+//! Thin tag-editor invokables: each mirrors one `storey_ui::tagging` action.
 
 use core::pin::Pin;
 
@@ -14,15 +14,15 @@ impl ffi::StoreyLibrary {
         let cat = support::s(&category);
         let vals = support::s(&values);
         act(self.as_mut(), move |st| {
-            ui::tagging::apply_tags(st, &cat, &vals)
+            storey_ui::tagging::apply_tags(st, &cat, &vals)
         });
     }
 
     pub(crate) fn do_suggest(mut self: Pin<&mut Self>) {
-        act(self.as_mut(), ui::tagging::do_suggest);
+        act(self.as_mut(), storey_ui::tagging::do_suggest);
     }
 
     pub(crate) fn apply_suggestions(mut self: Pin<&mut Self>) {
-        act(self.as_mut(), ui::tagging::apply_suggestions);
+        act(self.as_mut(), storey_ui::tagging::apply_suggestions);
     }
 }

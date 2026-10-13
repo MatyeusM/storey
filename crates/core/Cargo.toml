@@ -12,5 +12,5 @@ path = "src/lib.rs"
 [dependencies]
 serde.workspace = true
 serde_json.workspace = true
-sha2.workspace = true
+sha2 = { version = "0.10", features = ["asm"] }
 anyhow.workspace = true

@@ -1,7 +1,7 @@
 //! storey-gui: Qt6 graphical interface over linked `core`.
 //!
 //! The QObject below is a thin QString mirror: every invokable
-//! moves the inner [`ui::State`] out, calls one `ui` action, and
+//! moves the inner [`storey_ui::State`] out, calls one `ui` action, and
 //! commits the result back for QML. All logic lives in `crates/ui`.
 
 use cxx_qt_lib::QString;
@@ -94,7 +94,7 @@ pub mod ffi {
 }
 
 /// Rust state backing the [`ffi::StoreyLibrary`] QObject: QString
-/// mirror plus the logic-owned [`ui::State`].
+/// mirror plus the logic-owned [`storey_ui::State`].
 pub struct StoreyLibraryRust {
     gui_overrides: QString,
     cwd: QString,
@@ -119,7 +119,7 @@ pub struct StoreyLibraryRust {
     folder_count: i32,
     file_count: i32,
     progress_fraction: f64,
-    pub(crate) inner: ui::State,
+    pub(crate) inner: storey_ui::State,
 }
 
 impl Default for StoreyLibraryRust {
@@ -127,9 +127,9 @@ impl Default for StoreyLibraryRust {
     /// Theme defaults live in QML — only explicit, valid `[gui]`
     /// keys travel in `gui_overrides`.
     fn default() -> Self {
-        let settings = ui::settings::load().unwrap_or_default();
+        let settings = storey_ui::settings::load().unwrap_or_default();
         let cwd = std::env::var("STOREY_START_DIR").unwrap_or_else(|_| ".".into());
-        let inner = ui::State::new(cwd, settings);
+        let inner = storey_ui::State::new(cwd, settings);
         Self {
             gui_overrides: Self::q(&inner.gui_overrides),
             cwd: Self::q(&inner.cwd),
@@ -167,12 +167,12 @@ impl StoreyLibraryRust {
 }
 
 /// Move the logic state out (callers commit it back).
-pub(crate) fn take_state(mut obj: Pin<&mut ffi::StoreyLibrary>) -> ui::State {
+pub(crate) fn take_state(mut obj: Pin<&mut ffi::StoreyLibrary>) -> storey_ui::State {
     std::mem::take(&mut obj.as_mut().rust_mut().inner)
 }
 
 /// Mirror logic state into QString properties, then store it.
-pub(crate) fn commit(mut obj: Pin<&mut ffi::StoreyLibrary>, st: ui::State) {
+pub(crate) fn commit(mut obj: Pin<&mut ffi::StoreyLibrary>, st: storey_ui::State) {
     obj.as_mut()
         .set_gui_overrides(StoreyLibraryRust::q(&st.gui_overrides));
     obj.as_mut().set_cwd(StoreyLibraryRust::q(&st.cwd));
@@ -214,7 +214,7 @@ pub(crate) fn commit(mut obj: Pin<&mut ffi::StoreyLibrary>, st: ui::State) {
 }
 
 /// Run one logic action against the inner state, then mirror.
-pub(crate) fn act(mut obj: Pin<&mut ffi::StoreyLibrary>, f: impl FnOnce(&mut ui::State)) {
+pub(crate) fn act(mut obj: Pin<&mut ffi::StoreyLibrary>, f: impl FnOnce(&mut storey_ui::State)) {
     let mut st = take_state(obj.as_mut());
     f(&mut st);
     commit(obj.as_mut(), st);
