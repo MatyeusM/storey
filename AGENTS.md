@@ -34,9 +34,9 @@
 
 ## Size rules (all languages)
 
-- Files ≤ 300 lines, functions ≤ 50 lines — enforced by `scripts/check-limits.sh`
-  (Rust; brace-count heuristic, so keep braces out of strings/comments).
-  Each `lint:*` task runs it for its own app: `sh scripts/check-limits.sh apps/<app>`.
+- Files ≤ 300 lines (via `scripts/check-limits.sh`), functions ≤ 50
+  lines (via clippy `too-many-lines`, threshold in `clippy.toml`).
+  Each `lint:*` task runs both for its own app.
   Keep new code split into small modules/packages.
 
 ## Rust rules

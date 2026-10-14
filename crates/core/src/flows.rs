@@ -217,17 +217,28 @@ pub fn exec_update(
         return Ok(FlowDone::Aborted);
     }
     if verify {
-        rep.problems.extend(intake::reconcile_store(root, ix));
-        let (more, reverified, removed) = intake::reverify(root, ix, logger, abort);
-        rep.problems.extend(more);
-        rep.reverified = reverified;
-        rep.removed = removed;
+        verify_index(root, ix, &mut rep, logger, abort);
     }
     if aborted(abort) {
         return Ok(FlowDone::Aborted);
     }
     ix.save(root)?;
     Ok(FlowDone::Done(rep))
+}
+
+/// Reconcile plus reverify for `--verify`, folding into the report.
+fn verify_index(
+    root: &Path,
+    ix: &mut Index,
+    rep: &mut UpdateReport,
+    logger: &Logger,
+    abort: &AtomicBool,
+) {
+    rep.problems.extend(intake::reconcile_store(root, ix));
+    let (more, reverified, removed) = intake::reverify(root, ix, logger, abort);
+    rep.problems.extend(more);
+    rep.reverified = reverified;
+    rep.removed = removed;
 }
 
 /// Preview `update` on a throwaway copy. Composes with `--verify`.

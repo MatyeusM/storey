@@ -52,8 +52,8 @@ run_windows = "cargo test --manifest-path apps\\cli\\Cargo.toml"
 
 [tasks."lint:cli"]
 description = "cargo fmt check + clippy for the CLI"
-run = "cargo fmt --manifest-path apps/cli/Cargo.toml -- --check && cargo clippy --manifest-path apps/cli/Cargo.toml -- -D warnings && sh scripts/check-limits.sh apps/cli"
-run_windows = "cargo fmt --manifest-path apps\\cli\\Cargo.toml -- --check && cargo clippy --manifest-path apps\\cli\\Cargo.toml -- -D warnings && sh scripts/check-limits.sh apps/cli"
+run = "cargo fmt --manifest-path apps/cli/Cargo.toml -- --check && cargo clippy --manifest-path apps/cli/Cargo.toml -- -D warnings -D clippy::too_many_lines && sh scripts/check-limits.sh apps/cli"
+run_windows = "cargo fmt --manifest-path apps\\cli\\Cargo.toml -- --check && cargo clippy --manifest-path apps\\cli\\Cargo.toml -- -D warnings -D clippy::too_many_lines && sh scripts/check-limits.sh apps/cli"
 
 [tasks."build:cli-release"]
 description = "Release build of the CLI (per-OS native)"
@@ -74,8 +74,8 @@ run_windows = "cargo test --manifest-path crates\\ui\\Cargo.toml"
 
 [tasks."lint:ui"]
 description = "cargo fmt check + clippy for ui"
-run = "cargo fmt --manifest-path crates/ui/Cargo.toml -- --check && cargo clippy --manifest-path crates/ui/Cargo.toml -- -D warnings && sh scripts/check-limits.sh crates/ui"
-run_windows = "cargo fmt --manifest-path crates\\ui\\Cargo.toml -- --check && cargo clippy --manifest-path crates\\ui\\Cargo.toml -- -D warnings && sh scripts/check-limits.sh crates/ui"
+run = "cargo fmt --manifest-path crates/ui/Cargo.toml -- --check && cargo clippy --manifest-path crates/ui/Cargo.toml -- -D warnings -D clippy::too_many_lines && sh scripts/check-limits.sh crates/ui"
+run_windows = "cargo fmt --manifest-path crates\\ui\\Cargo.toml -- --check && cargo clippy --manifest-path crates\\ui\\Cargo.toml -- -D warnings -D clippy::too_many_lines && sh scripts/check-limits.sh crates/ui"
 
 [tasks."test:core"]
 description = "Test core with cargo"
@@ -84,8 +84,8 @@ run_windows = "cargo test --manifest-path crates\\core\\Cargo.toml"
 
 [tasks."lint:core"]
 description = "cargo fmt check + clippy for core"
-run = "cargo fmt --manifest-path crates/core/Cargo.toml -- --check && cargo clippy --manifest-path crates/core/Cargo.toml -- -D warnings && sh scripts/check-limits.sh crates/core"
-run_windows = "cargo fmt --manifest-path crates\\core\\Cargo.toml -- --check && cargo clippy --manifest-path crates\\core\\Cargo.toml -- -D warnings && sh scripts/check-limits.sh crates/core"
+run = "cargo fmt --manifest-path crates/core/Cargo.toml -- --check && cargo clippy --manifest-path crates/core/Cargo.toml -- -D warnings -D clippy::too_many_lines && sh scripts/check-limits.sh crates/core"
+run_windows = "cargo fmt --manifest-path crates\\core\\Cargo.toml -- --check && cargo clippy --manifest-path crates\\core\\Cargo.toml -- -D warnings -D clippy::too_many_lines && sh scripts/check-limits.sh crates/core"
 
 [tasks."test:meta"]
 description = "Test meta with cargo"
@@ -94,8 +94,8 @@ run_windows = "cargo test --manifest-path crates\\meta\\Cargo.toml"
 
 [tasks."lint:meta"]
 description = "cargo fmt check + clippy for meta"
-run = "cargo fmt --manifest-path crates/meta/Cargo.toml -- --check && cargo clippy --manifest-path crates/meta/Cargo.toml -- -D warnings && sh scripts/check-limits.sh crates/meta"
-run_windows = "cargo fmt --manifest-path crates\\meta\\Cargo.toml -- --check && cargo clippy --manifest-path crates\\meta\\Cargo.toml -- -D warnings && sh scripts/check-limits.sh crates/meta"
+run = "cargo fmt --manifest-path crates/meta/Cargo.toml -- --check && cargo clippy --manifest-path crates/meta/Cargo.toml -- -D warnings -D clippy::too_many_lines && sh scripts/check-limits.sh crates/meta"
+run_windows = "cargo fmt --manifest-path crates\\meta\\Cargo.toml -- --check && cargo clippy --manifest-path crates\\meta\\Cargo.toml -- -D warnings -D clippy::too_many_lines && sh scripts/check-limits.sh crates/meta"
 
 # ---------- gui (Rust / cxx-qt + Qt6) ----------
 
@@ -116,8 +116,8 @@ run_windows = "cargo test --manifest-path apps\\gui\\Cargo.toml"
 
 [tasks."lint:gui"]
 description = "cargo fmt check + clippy for the GUI"
-run = "cargo fmt --manifest-path apps/gui/Cargo.toml -- --check && cargo clippy --manifest-path apps/gui/Cargo.toml -- -D warnings && sh scripts/check-limits.sh apps/gui"
-run_windows = "cargo fmt --manifest-path apps\\gui\\Cargo.toml -- --check && cargo clippy --manifest-path apps\\gui\\Cargo.toml -- -D warnings && sh scripts/check-limits.sh apps/gui"
+run = "cargo fmt --manifest-path apps/gui/Cargo.toml -- --check && cargo clippy --manifest-path apps/gui/Cargo.toml -- -D warnings -D clippy::too_many_lines && sh scripts/check-limits.sh apps/gui"
+run_windows = "cargo fmt --manifest-path apps\\gui\\Cargo.toml -- --check && cargo clippy --manifest-path apps\\gui\\Cargo.toml -- -D warnings -D clippy::too_many_lines && sh scripts/check-limits.sh apps/gui"
 
 [tasks."dev:gui"]
 description = "Run the GUI from source (linked core, needs Qt6 at build time)"
