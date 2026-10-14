@@ -70,7 +70,7 @@ Per-app details: `apps/cli/README.md`, `apps/gui/README.md`.
 Download `storey-<version>-<os>-<arch>.tar.gz` (Linux/macOS) or
 `storey-<version>-<os>-<arch>.zip` (Windows) from the
 [releases](https://github.com/MatyeusM/storey/releases) page —
-one archive per app (`storey` CLI, `storey-gui`), plus `SHA256SUMS`:
+one archive per app (`storey` CLI, `storey-gui`), plus `SHA256SUMS.txt`:
 
 - **Linux**: needs system Qt6 for the GUI (`sudo apt install
   qt6-base` or your distro's equivalent).
@@ -117,7 +117,7 @@ All task bodies are single-tool invocations (`&&`-chained) with
 - Tag `vX.Y.Z` → `.github/workflows/release.yml` builds CLI
   (`mise run build:cli-release` per OS), GUI
   (`mise run build:gui-release` per OS with Qt installed per-OS),
-  uploads artifacts + `SHA256SUMS` to a GitHub Release.
+  uploads artifacts + `SHA256SUMS.txt` to a GitHub Release.
 - `VERSION` file + root `Cargo.toml` `[workspace.package]` version
   must agree — see `docs/RELEASING.md`.
 

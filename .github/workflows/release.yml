@@ -73,7 +73,7 @@ jobs:
         with:
           path: dist-all
       - run: sh scripts/package-release.sh dist-all release
-      - run: cd release && sha256sum * > SHA256SUMS
+      - run: cd release && sha256sum * > SHA256SUMS.txt
       - uses: softprops/action-gh-release@v3
         with:
           files: release/*

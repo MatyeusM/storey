@@ -10,7 +10,7 @@ Single version source: repo-root `VERSION` (currently `0.1.0`). Release flow:
 4. Commit, tag `vX.Y.Z`, push tag.
 5. `.github/workflows/release.yml` builds the matrix and publishes a GitHub
    Release with per-app archives (`storey-<ver>-<os>-<arch>.tar.gz`,
-   `storey-gui-<ver>-<os>-<arch>.tar.gz`, `.zip` on Windows) + `SHA256SUMS`,
+   `storey-gui-<ver>-<os>-<arch>.tar.gz`, `.zip` on Windows) + `SHA256SUMS.txt`,
    using the new version section as patch notes
    (`sh scripts/release-notes.sh` fails the job instead of shipping
    empty notes, so step 3 is load-bearing):
