@@ -117,9 +117,8 @@ All task bodies are single-tool invocations (`&&`-chained) with
   (`mise run build:cli-release` per OS), GUI
   (`mise run build:gui-release` per OS with Qt installed per-OS),
   uploads artifacts + `SHA256SUMS` to a GitHub Release.
-- `VERSION` file + per-app version sources (`apps/cli/Cargo.toml`,
-  `apps/gui/Cargo.toml`) must agree — see
-  `docs/RELEASING.md`.
+- `VERSION` file + root `Cargo.toml` `[workspace.package]` version
+  must agree — see `docs/RELEASING.md`.
 
 ## License
 

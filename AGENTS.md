@@ -4,7 +4,8 @@
 
 - mise-first: `mise install` once, then `mise run build|test|lint` (per-app: `build:cli`, `test:shared`, `lint:gui`, ...). mise provides Rust (`latest`); **Qt6 (>= 6.6) is a system dep** for the GUI (`qt6-base` + `qt6-declarative`), found at build time via `qmake`.
 - Task bodies must stay single-tool invocations with `run_windows` overrides — no implementation in `mise.toml`.
-- Single version source: repo-root `VERSION`; keep in sync with `apps/cli/Cargo.toml`, `apps/gui/Cargo.toml` (see `docs/RELEASING.md`).
+- Single version source: repo-root `VERSION`; keep the root
+  `Cargo.toml` `[workspace.package]` version in sync (see `docs/RELEASING.md`).
 
 ## Layout
 

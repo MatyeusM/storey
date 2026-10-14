@@ -3,10 +3,8 @@
 Single version source: repo-root `VERSION` (currently `0.1.0`). Release flow:
 
 1. Keep `CHANGELOG.md` `[Unreleased]` current as work lands.
-2. Bump `VERSION` and the two per-app versions together:
-   - `apps/cli/Cargo.toml` `version`,
-   - `apps/gui/Cargo.toml`
-     `version` (single `[workspace.package]` version).
+2. Bump `VERSION` and the `[workspace.package]` version in root
+   `Cargo.toml` together (all members inherit it).
 3. Move the `[Unreleased]` entries under a new
    `## [X.Y.Z] - YYYY-MM-DD` section in `CHANGELOG.md`.
 4. Commit, tag `vX.Y.Z`, push tag.
@@ -26,5 +24,5 @@ Single version source: repo-root `VERSION` (currently `0.1.0`). Release flow:
    - macOS runners are arm64, so `storey-macos.zip` mixes an arm64 GUI
      binary with the amd64 CLI (Rosetta covers it).
 
-The CLI version comes from `apps/cli/Cargo.toml` (via
+All binaries report the `[workspace.package]` version (via
 `CARGO_PKG_VERSION`); keep it in sync with repo-root `VERSION`.
