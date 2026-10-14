@@ -1,8 +1,8 @@
 # Architecture (reimplementation plan)
 
 Reference: `.reference/` (Java+ Swing `Clanker Sort`). Do not port it
-line-for-line — reimplement the concept in Rust (CLI) with a thin Rust UI
-client sharing one subprocess-driving library. This doc records
+line-for-line — reimplement the concept in Rust with a thin Qt UI
+over linked crates. This doc records
 decisions; items below are **locked** once implemented.
 
 ## Concept

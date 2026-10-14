@@ -3,7 +3,7 @@ name = "storey-gui"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
-description = "Qt6 graphical interface to the storey CLI (thin client, shells out to storey)"
+description = "Qt6 graphical interface over linked crates (thin Qt shell, no subprocess)"
 
 [[bin]]
 name = "storey-gui"

@@ -62,8 +62,6 @@ Plugins are declared, in query order, in `storey/ui.toml`:
 | Windows | `%APPDATA%\storey\ui.toml` |
 
 ```toml
-storey_bin = "storey"
-
 [[plugins]]
 name = "music"
 path = "/home/u/plugins/suggest-music"   # file or manifest.json dir

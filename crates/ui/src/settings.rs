@@ -5,7 +5,6 @@
 //! enable flag, extension filter, and timeout:
 //!
 //! ```toml
-//! storey_bin = "storey"
 //! [gui]
 //! rem_px = 18
 //! [[plugins]]
@@ -20,10 +19,6 @@ use std::path::PathBuf;
 
 use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
-
-fn default_bin() -> String {
-    "storey".to_string()
-}
 
 fn default_enabled() -> bool {
     true
@@ -47,25 +42,13 @@ pub struct PluginDecl {
 }
 
 /// Whole `ui.toml` document.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct Settings {
-    #[serde(default = "default_bin")]
-    pub storey_bin: String,
     #[serde(default)]
     pub plugins: Vec<PluginDecl>,
     /// `[gui]` design-token overrides (colors, base font size).
     #[serde(default)]
     pub gui: crate::theme::GuiOverrides,
-}
-
-impl Default for Settings {
-    fn default() -> Self {
-        Self {
-            storey_bin: default_bin(),
-            plugins: Vec::new(),
-            gui: crate::theme::GuiOverrides::default(),
-        }
-    }
 }
 
 /// OS config base: `APPDATA` on Windows, Library on macOS, XDG on Linux.
@@ -142,7 +125,6 @@ mod tests {
     #[test]
     fn defaults_when_empty() {
         let s: Settings = parse("").unwrap();
-        assert_eq!(s.storey_bin, "storey");
         assert!(s.plugins.is_empty());
     }
 

@@ -60,7 +60,7 @@ in-process instead). This file pins the command surface.
 - Exit codes: `0` ok (including empty `list`), `2` usage / no library,
   `1` runtime failure, `130` interrupted (the index is saved first).
 - Never interactive: storey never prompts and never reads stdin. Command
-  it, it does — the GUI drives it as a subprocess, so every command must
+  it, it does — every command must
   be fully determined by its flags. `--dry-run` previews without mutating.
 
 ## Tag and category names
