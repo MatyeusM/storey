@@ -17,20 +17,24 @@ pub struct MetaTag {
 
 /// Read suggestion hints from `path`, dispatched by extension.
 /// Unknown extensions and unreadable files yield no tags, never
-/// an error.
+/// an error. The uppercased extension itself is always suggested.
 pub fn suggest_for(path: &Path) -> Vec<MetaTag> {
     let ext = path
         .extension()
         .and_then(|e| e.to_str())
         .unwrap_or("")
         .to_ascii_lowercase();
-    match ext.as_str() {
+    let mut out = match ext.as_str() {
         "mp3" | "flac" | "ogg" | "oga" | "opus" | "m4a" | "mp4" | "aac" | "wav" | "aif"
         | "aiff" | "ape" | "mpc" | "wv" => audio::read(path),
         "jpg" | "jpeg" | "tif" | "tiff" => image::exif(path),
         "png" => image::png(path),
-        _ => Vec::new(),
+        _ => return Vec::new(),
+    };
+    if let Some(hint) = tag("extension", &ext.to_uppercase()) {
+        out.push(hint);
     }
+    out
 }
 
 /// One hint, or `None` for blank values.
@@ -52,8 +56,15 @@ mod tests {
     #[test]
     fn unknown_types_yield_no_tags() {
         assert!(suggest_for(Path::new("notes.txt")).is_empty());
-        assert!(suggest_for(Path::new("no-such-file-xyz.mp3")).is_empty());
-        assert!(suggest_for(Path::new("no-such-file-xyz.jpg")).is_empty());
+        assert!(suggest_for(Path::new("no-such-file-xyz")).is_empty());
+    }
+
+    #[test]
+    fn known_types_carry_extension() {
+        let hints = suggest_for(Path::new("no-such-file-xyz.mp3"));
+        assert_eq!(hints.len(), 1);
+        assert_eq!(hints[0].category, "extension");
+        assert_eq!(hints[0].value, "MP3");
     }
 
     #[test]
