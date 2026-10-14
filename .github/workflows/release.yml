@@ -19,6 +19,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - uses: jdx/mise-action@v5
+      - uses: Swatinem/rust-cache@v2
       - run: mise run build:cli-release
       - uses: actions/upload-artifact@v7
         with:
@@ -35,6 +36,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - uses: jdx/mise-action@v5
+      - uses: Swatinem/rust-cache@v2
       - name: Install Qt (Linux)
         if: runner.os == 'Linux'
         run: sudo apt-get update && sudo apt-get install -y qt6-base-dev qt6-declarative-dev
@@ -46,6 +48,7 @@ jobs:
         uses: jurplel/install-qt-action@v4
         with:
           version: '6.8.*'
+          cache: true
       - run: mise run build:gui-release
       - name: Bundle Qt (Windows)
         if: runner.os == 'Windows'

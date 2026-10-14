@@ -781,7 +781,7 @@ checksum = "a2eb9349b6444b326872e140eb1cf5e7c522154d69e7a0ffb0fb81c06b37543f"
 
 [[package]]
 name = "storey"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "anyhow",
  "clap",
@@ -793,7 +793,7 @@ dependencies = [
 
 [[package]]
 name = "storey-core"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "anyhow",
  "serde",
@@ -803,7 +803,7 @@ dependencies = [
 
 [[package]]
 name = "storey-gui"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "anyhow",
  "clap",
@@ -817,7 +817,7 @@ dependencies = [
 
 [[package]]
 name = "storey-meta"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "lofty",
  "png",
@@ -826,7 +826,7 @@ dependencies = [
 
 [[package]]
 name = "storey-ui"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "anyhow",
  "serde",
