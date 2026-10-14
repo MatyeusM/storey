@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Embedded metadata suggestions (`storey-meta` crate): the tag
+  editor's `Metadata` button reads audio tags, JPEG EXIF, and PNG
+  text chunks locally (no network); the `Apply all` path is shared
+  with plugin suggestions.
+
 ### Changed
 
 - All-Rust monorepo in one workspace: CLI ported from Go

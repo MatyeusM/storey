@@ -1,0 +1,15 @@
+[package]
+name = "storey-meta"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Storey embedded file-metadata reads for tag suggestions (local only, never network)"
+
+[lib]
+name = "storey_meta"
+path = "src/lib.rs"
+
+[dependencies]
+lofty = "0.25"
+rexif = "0.7"
+png = "0.18"

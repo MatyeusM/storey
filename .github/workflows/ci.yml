@@ -34,6 +34,20 @@ jobs:
       - run: mise run lint:core
       - run: mise run test:core
 
+  meta:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: jdx/mise-action@v5
+      - name: Rust components for lint
+        run: |
+          VER=$(mise current rust)
+          rustup toolchain install "$VER" --profile minimal --component rustfmt,clippy
+          HOST=$(rustc -vV | sed -n 's/^host: //p')
+          echo "$HOME/.rustup/toolchains/$VER-$HOST/bin" >> "$GITHUB_PATH"
+      - run: mise run lint:meta
+      - run: mise run test:meta
+
   ui:
     runs-on: ubuntu-latest
     steps:

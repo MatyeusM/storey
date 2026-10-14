@@ -1,8 +1,13 @@
 # Plugin guide: tag suggesters
 
-Storey ships **no built-in tag suggesters**. Every suggestion source is
+Storey ships **one built-in suggestion source**: embedded file
+metadata (`storey-meta`: audio tags, JPEG EXIF, PNG text) behind the
+GUI's `Metadata` button. It is local-only by construction. Every
+other suggestion source is
 an external plugin — a program in any language that reads one record
-and prints suggested tags. The GUI (`storey-gui`) queries
+and prints suggested tags. Rule of thumb: local file reads belong
+in the program, anything needing the network belongs in a plugin.
+The GUI (`storey-gui`) queries
 plugins through `ui` (`crates/ui/src/tags.rs`). A person or an LLM following this file can write, register,
 and debug a plugin without reading the Rust code.
 

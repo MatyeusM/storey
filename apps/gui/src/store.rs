@@ -77,6 +77,8 @@ pub mod ffi {
         #[qinvokable]
         fn do_suggest(self: Pin<&mut Self>);
         #[qinvokable]
+        fn read_metadata(self: Pin<&mut Self>);
+        #[qinvokable]
         fn apply_suggestions(self: Pin<&mut Self>);
         #[qinvokable]
         fn reload_plugins(self: Pin<&mut Self>);

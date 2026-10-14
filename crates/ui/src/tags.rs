@@ -1,7 +1,9 @@
-//! Tag-suggestion plugins shared by both UIs.
+//! Tag-suggestion sources: one built-in, plus plugins.
 //!
-//! There are no built-in suggesters: every source is an external
-//! plugin so authors can use any language. [`ExternalPlugin`] speaks
+//! The built-in source is embedded file metadata (`storey-meta`):
+//! local-only by construction. Every other source is an external
+//! plugin so authors can use any language (including network
+//! lookups). [`ExternalPlugin`] speaks
 //! the protocol (record JSON on stdin with rels absolutized against
 //! the library root, suggestion array on stdout) for either a direct
 //! executable or a directory holding `manifest.json`; [`TagSource`] stays as the object-safe trait UIs

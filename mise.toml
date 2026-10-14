@@ -17,17 +17,17 @@ description = "Build all apps (cli + gui configure+build)"
 depends = ["build:cli", "build:gui"]
 
 [tasks.test]
-description = "Test all apps (cli + core + ui + gui)"
-depends = ["test:cli", "test:core", "test:ui", "test:gui"]
+description = "Test all apps (cli + core + meta + ui + gui)"
+depends = ["test:cli", "test:core", "test:meta", "test:ui", "test:gui"]
 
 [tasks.lint]
 description = "Lint all apps"
-depends = ["lint:cli", "lint:core", "lint:ui", "lint:gui"]
+depends = ["lint:cli", "lint:core", "lint:meta", "lint:ui", "lint:gui"]
 
 [tasks.fmt]
 description = "Format Rust sources"
-run = "cargo fmt --manifest-path apps/cli/Cargo.toml && cargo fmt --manifest-path crates/core/Cargo.toml && cargo fmt --manifest-path crates/ui/Cargo.toml && cargo fmt --manifest-path apps/gui/Cargo.toml"
-run_windows = "cargo fmt --manifest-path apps\\cli\\Cargo.toml && cargo fmt --manifest-path crates\\core\\Cargo.toml && cargo fmt --manifest-path crates\\ui\\Cargo.toml && cargo fmt --manifest-path apps\\gui\\Cargo.toml"
+run = "cargo fmt --manifest-path apps/cli/Cargo.toml && cargo fmt --manifest-path crates/core/Cargo.toml && cargo fmt --manifest-path crates/meta/Cargo.toml && cargo fmt --manifest-path crates/ui/Cargo.toml && cargo fmt --manifest-path apps/gui/Cargo.toml"
+run_windows = "cargo fmt --manifest-path apps\\cli\\Cargo.toml && cargo fmt --manifest-path crates\\core\\Cargo.toml && cargo fmt --manifest-path crates\\meta\\Cargo.toml && cargo fmt --manifest-path crates\\ui\\Cargo.toml && cargo fmt --manifest-path apps\\gui\\Cargo.toml"
 
 [tasks.clean]
 description = "Remove build outputs"
@@ -86,6 +86,16 @@ run_windows = "cargo test --manifest-path crates\\core\\Cargo.toml"
 description = "cargo fmt check + clippy for core"
 run = "cargo fmt --manifest-path crates/core/Cargo.toml -- --check && cargo clippy --manifest-path crates/core/Cargo.toml -- -D warnings && sh scripts/check-limits.sh crates/core"
 run_windows = "cargo fmt --manifest-path crates\\core\\Cargo.toml -- --check && cargo clippy --manifest-path crates\\core\\Cargo.toml -- -D warnings && sh scripts/check-limits.sh crates/core"
+
+[tasks."test:meta"]
+description = "Test meta with cargo"
+run = "cargo test --manifest-path crates/meta/Cargo.toml"
+run_windows = "cargo test --manifest-path crates\\meta\\Cargo.toml"
+
+[tasks."lint:meta"]
+description = "cargo fmt check + clippy for meta"
+run = "cargo fmt --manifest-path crates/meta/Cargo.toml -- --check && cargo clippy --manifest-path crates/meta/Cargo.toml -- -D warnings && sh scripts/check-limits.sh crates/meta"
+run_windows = "cargo fmt --manifest-path crates\\meta\\Cargo.toml -- --check && cargo clippy --manifest-path crates\\meta\\Cargo.toml -- -D warnings && sh scripts/check-limits.sh crates/meta"
 
 # ---------- gui (Rust / cxx-qt + Qt6) ----------
 

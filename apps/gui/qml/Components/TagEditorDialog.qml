@@ -73,6 +73,11 @@ Dialog {
                 onClicked: library.do_suggest()
             }
             PrimaryButton {
+                label: qsTr("Metadata")
+                enabled: root.detail !== null && !library.busy
+                onClicked: library.read_metadata()
+            }
+            PrimaryButton {
                 label: qsTr("Apply all")
                 visible: root.suggestions.length > 0
                 enabled: !library.busy

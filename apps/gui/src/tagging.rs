@@ -22,6 +22,10 @@ impl ffi::StoreyLibrary {
         act(self.as_mut(), storey_ui::tagging::do_suggest);
     }
 
+    pub(crate) fn read_metadata(mut self: Pin<&mut Self>) {
+        act(self.as_mut(), storey_ui::tagging::do_metadata);
+    }
+
     pub(crate) fn apply_suggestions(mut self: Pin<&mut Self>) {
         act(self.as_mut(), storey_ui::tagging::apply_suggestions);
     }

@@ -69,6 +69,41 @@ pub fn do_suggest(state: &mut State) {
     state.suggestions_json = support::suggestions_json(&state.suggestions.clone());
 }
 
+/// Read embedded file metadata for the selected record.
+///
+/// Local-only (never network): values are filtered view-safe, so the
+/// `Apply all` path stays under the tag-time contract.
+pub fn do_metadata(state: &mut State) {
+    let id = state.selected_id.clone();
+    let root = std::path::PathBuf::from(state.root.clone());
+    let Some(record) = state.records.iter().find(|r| r.id == id).cloned() else {
+        state.status_text = "storey error: select a file first".into();
+        return;
+    };
+    let path = root.join(storey_core::library::from_slash(record.location()));
+    let mut out = Vec::new();
+    for item in storey_meta::suggest_for(&path) {
+        // ponytail: drop view-unsafe values; upgrade to sanitize-on-read if real files hit this.
+        if storey_core::tags::check_name(&item.category).is_ok()
+            && storey_core::tags::check_name(&item.value).is_ok()
+        {
+            out.push(crate::tags::Suggestion {
+                category: item.category,
+                value: item.value,
+                score: 1.0,
+                source: "metadata".into(),
+            });
+        }
+    }
+    let ranked = rank(out);
+    if ranked.is_empty() {
+        state.status_text = "no metadata found".into();
+        return;
+    }
+    state.suggestions = ranked;
+    state.suggestions_json = support::suggestions_json(&state.suggestions.clone());
+}
+
 /// Merge every suggestion via grouped tag adds.
 pub fn apply_suggestions(state: &mut State) {
     use std::collections::BTreeMap;
@@ -146,5 +181,32 @@ pub fn tags_resolve(
             Some(c) => Err(format!("ambiguous id prefix {id:?}: {}", c.join(", "))),
             None => Err(e.error),
         },
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn metadata_without_tags_reports() {
+        let dir = std::env::temp_dir().join(format!("storey-ui-meta-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        std::fs::write(dir.join("a.txt"), "x").unwrap();
+        let mut state = State::new(dir.display().to_string(), Default::default());
+        state.root = dir.display().to_string();
+        state.records.push(storey_core::index::Record {
+            id: "ab".into(),
+            display_name: "a.txt".into(),
+            original_rel: "a.txt".into(),
+            stored_rel: String::new(),
+            size: 1,
+            tags: Default::default(),
+        });
+        state.selected_id = "ab".into();
+        do_metadata(&mut state);
+        assert_eq!(state.status_text, "no metadata found");
+        let _ = std::fs::remove_dir_all(&dir);
     }
 }
