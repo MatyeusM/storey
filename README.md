@@ -67,15 +67,16 @@ Per-app details: `apps/cli/README.md`, `apps/gui/README.md`.
 
 ## Install a release
 
-Download `storey-<os>.zip` from the
+Download `storey-<version>-<os>-<arch>.tar.gz` (Linux/macOS) or
+`storey-<version>-<os>-<arch>.zip` (Windows) from the
 [releases](https://github.com/MatyeusM/storey/releases) page —
-each holds the `storey` CLI and `storey-gui`:
+one archive per app (`storey` CLI, `storey-gui`), plus `SHA256SUMS`:
 
 - **Linux**: needs system Qt6 for the GUI (`sudo apt install
   qt6-base` or your distro's equivalent).
 - **macOS**: `brew install qt` for the GUI (arm64 binaries).
 - **Windows**: runs as-is — the needed Qt libraries ship inside
-  the zip.
+  the GUI zip.
 
 ## Concept (from `.reference/`)
 
