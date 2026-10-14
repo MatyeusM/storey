@@ -39,6 +39,6 @@ mod tests {
         let missing = std::path::Path::new("/no-such-meta-xyz.mp3");
         assert!(read(missing).is_empty());
     }
-    // ponytail: no positive audio fixture (hand-built MP3/FLAC rejected
-    // by lofty's parser); verify against a real tagged file by hand.
+    // ponytail: no committed audio fixture (real FLACs are 10-50MB);
+    // positive path verified by hand against local/*.flac (gitignored).
 }
