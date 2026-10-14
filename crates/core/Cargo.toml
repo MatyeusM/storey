@@ -12,5 +12,13 @@ path = "src/lib.rs"
 [dependencies]
 serde.workspace = true
 serde_json.workspace = true
-sha2 = { version = "0.10", features = ["asm"] }
 anyhow.workspace = true
+
+# asm hashing everywhere except Windows: sha2-asm's build script does
+# not emit the object MSVC links (LNK1181). Output is identical; only
+# speed differs.
+[target.'cfg(not(windows))'.dependencies]
+sha2 = { version = "0.10", features = ["asm"] }
+
+[target.'cfg(windows)'.dependencies]
+sha2 = "0.10"

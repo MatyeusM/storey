@@ -7,6 +7,11 @@ on:
     tags:
       - 'v*'
 
+# A re-pushed tag cancels the superseded release run.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 permissions:
   contents: write
 
