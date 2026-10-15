@@ -65,7 +65,7 @@ pub fn compute_moves(ix: &Index) -> BTreeMap<String, Option<String>> {
     let mut stored_ids: HashSet<String> = HashSet::new();
     for rec in &ix.files {
         if rec.stored() {
-            taken.insert(store_base(&rec.stored_rel), rec.id.clone());
+            taken.insert(store_base(&rec.stored_rel).to_lowercase(), rec.id.clone());
             stored_ids.insert(rec.id.clone());
         }
     }
@@ -79,7 +79,7 @@ pub fn compute_moves(ix: &Index) -> BTreeMap<String, Option<String>> {
             continue;
         }
         let name = views::store_name(&rec.display_name, &taken, &rec.id);
-        taken.insert(name.clone(), rec.id.clone());
+        taken.insert(name.to_lowercase(), rec.id.clone());
         stored_ids.insert(rec.id.clone());
         moves.insert(
             rec.location().to_string(),
@@ -189,4 +189,28 @@ pub fn exec_view(ix: &mut Index, ctx: ExecCtx) -> anyhow::Result<FlowDone<ViewRe
         plan: vec![],
         moves: BTreeMap::new(),
     }))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::index::Record;
+
+    #[test]
+    fn moves_case_variant_names_apart() {
+        let mut ix = Index::new();
+        for (id, name, size) in [("a", "Song.mp3", 1), ("b", "song.mp3", 2)] {
+            ix.files.push(Record {
+                id: id.into(),
+                display_name: name.into(),
+                original_rel: name.into(),
+                stored_rel: String::new(),
+                size,
+                tags: Default::default(),
+            });
+        }
+        let moves = compute_moves(&ix);
+        let dsts: Vec<&str> = moves.values().map(|d| d.as_deref().unwrap()).collect();
+        assert_eq!(dsts, vec![".files/Song.mp3", ".files/song_1.mp3"]);
+    }
 }

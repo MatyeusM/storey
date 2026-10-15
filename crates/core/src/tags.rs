@@ -113,7 +113,18 @@ pub fn categories(files: &[Record]) -> Vec<String> {
 }
 
 /// Replace (`merge` false) or merge (`merge` true) a category.
-pub fn apply_values(rec: &mut Record, cat: &str, vals: Vec<String>, merge: bool) {
+/// Names are validated first: on error the record is untouched, so
+/// every writer (CLI, GUI editor, plugin suggestions) is covered.
+pub fn apply_values(
+    rec: &mut Record,
+    cat: &str,
+    vals: Vec<String>,
+    merge: bool,
+) -> Result<(), String> {
+    check_name(cat)?;
+    for v in &vals {
+        check_name(v)?;
+    }
     if merge {
         let entry = rec.tags.entry(cat.to_string()).or_default();
         for v in vals {
@@ -124,6 +135,7 @@ pub fn apply_values(rec: &mut Record, cat: &str, vals: Vec<String>, merge: bool)
     } else {
         rec.tags.insert(cat.to_string(), vals);
     }
+    Ok(())
 }
 
 /// Drop values, a category, or all tags; returns a usage message on
@@ -234,9 +246,14 @@ mod tests {
             size: 1,
             tags: Default::default(),
         };
-        apply_values(&mut rec, "g", vec!["rock".into()], false);
-        apply_values(&mut rec, "g", vec!["rock".into(), "pop".into()], true);
+        apply_values(&mut rec, "g", vec!["rock".into()], false).unwrap();
+        apply_values(&mut rec, "g", vec!["rock".into(), "pop".into()], true).unwrap();
         assert_eq!(rec.tags["g"], vec!["rock", "pop"]);
+        for (cat, val) in [("g", "../x"), ("g", "a/b"), ("bad/cat", "ok")] {
+            assert!(apply_values(&mut rec, cat, vec![val.into()], true).is_err());
+        }
+        assert_eq!(rec.tags["g"], vec!["rock", "pop"]);
+        assert_eq!(rec.tags.len(), 1);
         apply_remove(&mut rec, "g", "rock").unwrap();
         assert_eq!(rec.tags["g"], vec!["pop"]);
         apply_remove(&mut rec, "g", "").unwrap();

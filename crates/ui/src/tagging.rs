@@ -34,7 +34,10 @@ pub fn apply_tags(state: &mut State, category: &str, values: &str) {
         }
     };
     let rec = &mut opened.ix.files[pos];
-    storey_core::tags::apply_values(rec, &cat, vals, false);
+    if let Err(e) = storey_core::tags::apply_values(rec, &cat, vals, false) {
+        support::fail(state, "tag", &e);
+        return;
+    }
     if opened.ix.save(&opened.root).is_err() {
         support::fail(state, "tag", "cannot save index");
         return;
@@ -59,6 +62,11 @@ pub fn do_suggest(state: &mut State) {
         .filter_map(|decl| ExternalPlugin::from_decl(decl).ok())
         .filter_map(|plugin| plugin.lookup(&record, &root).ok())
         .flatten()
+        // ponytail: drop view-unsafe plugin output like `do_metadata` does.
+        .filter(|s| {
+            storey_core::tags::check_name(&s.category).is_ok()
+                && storey_core::tags::check_name(&s.value).is_ok()
+        })
         .collect();
     let ranked = rank(all);
     if ranked.is_empty() {
@@ -135,7 +143,10 @@ pub fn apply_suggestions(state: &mut State) {
             }
         };
         let rec = &mut opened.ix.files[pos];
-        storey_core::tags::apply_values(rec, cat, values.clone(), true);
+        if let Err(e) = storey_core::tags::apply_values(rec, cat, values.clone(), true) {
+            support::fail(state, "tag", &e);
+            return;
+        }
         if opened.ix.save(&opened.root).is_err() {
             support::fail(state, "tag", "cannot save index");
             return;

@@ -145,7 +145,7 @@ fn basename(rel: &str) -> String {
 
 /// Whether rel exists under root. Any error counts as gone (never
 /// delete on doubt): a dangling link repoints rather than purges.
-fn on_disk(root: &Path, rel: &str) -> bool {
+pub(crate) fn on_disk(root: &Path, rel: &str) -> bool {
     std::fs::metadata(root.join(library::from_slash(rel))).is_ok()
 }
 
@@ -200,43 +200,47 @@ pub fn reconcile_store(root: &Path, ix: &mut Index) -> Vec<String> {
     orphans
 }
 
-/// Re-hash every indexed path. Changed files are problems; missing
-/// files are pruned at the end (renamed or deleted — the entry is
-/// dropped, not reported).
+/// Re-hash every indexed path through the worker pool. Changed
+/// files are problems; missing files are pruned at the end (renamed
+/// or deleted — the entry is dropped, not reported). Verdicts are
+/// folded in index order, so reports stay deterministic.
 pub fn reverify(
     root: &Path,
     ix: &mut Index,
     logger: &Logger,
     abort: &AtomicBool,
 ) -> (Vec<String>, usize, Vec<String>) {
+    let rels: Vec<String> = ix.files.iter().map(|r| r.location().to_string()).collect();
+    let abs: Vec<std::path::PathBuf> = rels
+        .iter()
+        .map(|r| root.join(library::from_slash(r)))
+        .collect();
+    let outcomes = hash::files(&abs, hash::workers(), abort, |done, total, path| {
+        logger.progress("verify", done, total, &library::slash_rel(root, path));
+    });
+    let by_rel: HashMap<String, hash::Outcome> = outcomes
+        .into_iter()
+        .map(|o| (library::slash_rel(root, &o.path), o))
+        .collect();
     let mut problems = Vec::new();
     let mut missing = Vec::new();
     let mut reverified = 0;
     for (i, rec) in ix.files.iter().enumerate() {
-        if abort.load(Ordering::Relaxed) {
-            break;
+        let Some(o) = by_rel.get(&rels[i]) else {
+            continue; // aborted before this file was hashed
+        };
+        if o.missing {
+            missing.push(i);
+        } else if let Some(e) = &o.error {
+            problems.push(format!("{}: {e}", rels[i]));
+        } else if o.hash != rec.id {
+            problems.push(format!("{}: content changed", rels[i]));
+        } else {
+            reverified += 1;
         }
-        let abs = root.join(library::from_slash(rec.location()));
-        match hash::file(&abs) {
-            Err(e) if is_not_found(&e) => missing.push(i),
-            Err(e) => problems.push(format!("{}: {e}", rec.location())),
-            Ok((h, _)) if h != rec.id => {
-                problems.push(format!("{}: content changed", rec.location()))
-            }
-            Ok(_) => reverified += 1,
-        }
-        logger.progress("verify", i + 1, ix.files.len(), rec.location());
     }
     let removed = prune_missing(ix, &missing);
     (problems, reverified, removed)
-}
-
-fn is_not_found(e: &anyhow::Error) -> bool {
-    e.chain().any(|c| {
-        c.downcast_ref::<std::io::Error>()
-            .map(|io| io.kind() == std::io::ErrorKind::NotFound)
-            .unwrap_or(false)
-    })
 }
 
 fn prune_missing(ix: &mut Index, missing: &[usize]) -> Vec<String> {
@@ -253,31 +257,5 @@ pub fn copy_index(ix: &Index) -> Index {
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn fills_and_dedupes() {
-        let dir = std::env::temp_dir().join(format!("storey-core-fill-{}", std::process::id()));
-        let _ = std::fs::remove_dir_all(&dir);
-        std::fs::create_dir_all(&dir).unwrap();
-        std::fs::write(dir.join("a.txt"), "same").unwrap();
-        std::fs::write(dir.join("b.txt"), "same").unwrap();
-        std::fs::write(dir.join("c.txt"), "diff").unwrap();
-        let mut ix = Index::new();
-        let rels = vec![
-            "a.txt".to_string(),
-            "b.txt".to_string(),
-            "c.txt".to_string(),
-        ];
-        let logger = Logger::new(false, true);
-        let calm = AtomicBool::new(false);
-        let hashed = hash_rels(&dir, &rels, &logger, "hash", &calm);
-        let abort = AtomicBool::new(false);
-        let scan = fill_index(&mut ix, &dir, &hashed, false, &abort).unwrap();
-        assert_eq!(scan.added.len(), 2);
-        assert_eq!(scan.purged.len(), 1);
-        assert!(!dir.join("b.txt").exists());
-        let _ = std::fs::remove_dir_all(&dir);
-    }
-}
+#[path = "intake_tests.rs"]
+mod tests;

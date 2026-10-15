@@ -143,6 +143,10 @@ fn merge_one(ctx: One) {
         ctx.res.skipped.push(ctx.sub.to_string());
         return;
     }
+    if !mv::move_store_leftovers(ctx.root, &sub_abs, ctx.ix, &mut *ctx.res) {
+        ctx.res.skipped.push(ctx.sub.to_string());
+        return;
+    }
     if let Err(e) = std::fs::remove_file(sub_abs.join(index::FILE_NAME)) {
         ctx.res
             .problems
@@ -150,7 +154,7 @@ fn merge_one(ctx: One) {
         return;
     }
     ctx.res.indexes += 1;
-    let _ = std::fs::remove_dir_all(sub_abs.join(index::STORE_DIR));
+    let _ = std::fs::remove_dir(sub_abs.join(index::STORE_DIR));
     ctx.logger
         .info(format!("adopted nested library {}", ctx.sub));
 }
@@ -201,7 +205,14 @@ fn adopt_record(rec: &Record, ctx: &mut Ctx) -> bool {
         );
     }
     if let Some(dup) = ctx.ix.find(&rec.id).cloned() {
-        return adopt_duplicate(ctx.sub, ctx.sub_abs, rec, &dup, &mut *ctx.res);
+        return adopt_duplicate(mv::DupCtx {
+            root: ctx.root,
+            sub: ctx.sub,
+            sub_abs: ctx.sub_abs,
+            rec,
+            dup: &dup,
+            res: &mut *ctx.res,
+        });
     }
     if rec.stored() {
         return adopt_stored(StoredCtx {
@@ -249,48 +260,5 @@ fn moved_earlier(root: &Path, rec: &Record, dup: &Record) -> bool {
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn shield_prefixes() {
-        let skipped = vec!["sub".to_string()];
-        assert!(shielded("sub", &skipped));
-        assert!(shielded("sub/a.txt", &skipped));
-        assert!(!shielded("sub2/a.txt", &skipped));
-        assert!(!shielded("other", &skipped));
-    }
-
-    #[test]
-    fn merges_nested_library() {
-        let dir = std::env::temp_dir().join(format!("storey-core-adopt-{}", std::process::id()));
-        let _ = std::fs::remove_dir_all(&dir);
-        let sub = dir.join("sub");
-        std::fs::create_dir_all(&sub).unwrap();
-        std::fs::write(sub.join("a.txt"), "hello").unwrap();
-        let mut sub_ix = Index::new();
-        sub_ix.files.push(Record {
-            id: "2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824".into(),
-            display_name: "a.txt".into(),
-            original_rel: "a.txt".into(),
-            stored_rel: String::new(),
-            size: 5,
-            tags: [("g".to_string(), vec!["rock".to_string()])]
-                .into_iter()
-                .collect(),
-        });
-        sub_ix.save(&sub).unwrap();
-        let mut ix = Index::new();
-        let logger = Logger::new(false, true);
-        let calm = AtomicBool::new(false);
-        let FlowDone::Done(res) = merge(&dir, &mut ix, &logger, &calm) else {
-            panic!("aborted");
-        };
-        assert!(res.problems.is_empty(), "{:?}", res.problems);
-        assert_eq!(res.indexes, 1);
-        assert_eq!(ix.files.len(), 1);
-        assert_eq!(ix.files[0].original_rel, "sub/a.txt");
-        assert!(!sub.join(index::FILE_NAME).exists());
-        let _ = std::fs::remove_dir_all(&dir);
-    }
-}
+#[path = "adopt_tests.rs"]
+mod tests;

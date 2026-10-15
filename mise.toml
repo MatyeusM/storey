@@ -32,7 +32,7 @@ run_windows = "cargo fmt --manifest-path apps\\cli\\Cargo.toml && cargo fmt --ma
 [tasks.clean]
 description = "Remove build outputs"
 run = "rm -rf build dist target"
-run_windows = "if exist build rmdir /s /q build & if exist dist rmdir /s /q dist"
+run_windows = "if exist build rmdir /s /q build & if exist dist rmdir /s /q dist & if exist target rmdir /s /q target"
 
 [tasks.dev]
 description = "Print dev entrypoints"

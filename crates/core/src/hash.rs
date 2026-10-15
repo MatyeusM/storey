@@ -22,6 +22,15 @@ pub fn file(path: &Path) -> Result<(String, i64)> {
     Ok((format!("{:x}", h.finalize()), n))
 }
 
+/// Whether the error chain bottoms out in an absent file.
+fn is_not_found(e: &anyhow::Error) -> bool {
+    e.chain().any(|c| {
+        c.downcast_ref::<std::io::Error>()
+            .map(|io| io.kind() == std::io::ErrorKind::NotFound)
+            .unwrap_or(false)
+    })
+}
+
 /// Outcome for one path. Failures are report-only, never fatal.
 #[derive(Clone)]
 pub struct Outcome {
@@ -29,6 +38,9 @@ pub struct Outcome {
     pub hash: String,
     pub size: i64,
     pub error: Option<String>,
+    /// The failure was an absent file (NotFound), so callers can
+    /// prune instead of reporting.
+    pub missing: bool,
 }
 
 /// Hash paths concurrently. `progress` runs after each file with
@@ -60,11 +72,13 @@ pub fn files(
                             hash,
                             size,
                             error: None,
+                            missing: false,
                         },
                         Err(e) => Outcome {
                             path: p.clone(),
                             hash: String::new(),
                             size: 0,
+                            missing: is_not_found(&e),
                             error: Some(e.to_string()),
                         },
                     };
@@ -108,6 +122,7 @@ mod tests {
         let out = files(std::slice::from_ref(&missing), 2, &calm, |_, _, _| {});
         assert_eq!(out.len(), 1);
         assert!(out[0].error.is_some());
+        assert!(out[0].missing);
     }
 
     #[test]

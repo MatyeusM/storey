@@ -133,7 +133,7 @@ pub fn cmd_write(args: &[String], as_json: bool, merge: bool) -> i32 {
     locked_write(as_json, &cat, |root, ix| {
         let idx = crate::resolve_target(root, ix, &pos[0], "tag", as_json)?;
         let rec = &mut ix.files[idx];
-        tags::apply_values(rec, &cat, vals, merge);
+        tags::apply_values(rec, &cat, vals, merge).map_err(WriteErr::Usage)?;
         Ok(idx)
     })
 }

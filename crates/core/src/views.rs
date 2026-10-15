@@ -128,10 +128,16 @@ pub fn plan_set(records: &[Record], by: &[String]) -> HashSet<String> {
 }
 
 /// Store object name for display: display itself, or `stem_N.ext`
-/// while the name is taken by different content. `taken` maps store
-/// basename to id.
+/// while the name is taken by different content. `taken` maps
+/// *lowercase* store basename to id, because case-insensitive
+/// filesystems (macOS, Windows, exFAT) would let a case-only
+/// difference overwrite the first object.
 pub fn store_name(display: &str, taken: &HashMap<String, String>, id: &str) -> String {
-    if taken.get(display).map(|o| o == id).unwrap_or(true) {
+    if taken
+        .get(&display.to_lowercase())
+        .map(|o| o == id)
+        .unwrap_or(true)
+    {
         return display.to_string();
     }
     let ext = extension(display);
@@ -139,7 +145,11 @@ pub fn store_name(display: &str, taken: &HashMap<String, String>, id: &str) -> S
     let mut i = 1;
     loop {
         let candidate = format!("{stem}_{i}{ext}");
-        if taken.get(&candidate).map(|o| o == id).unwrap_or(true) {
+        if taken
+            .get(&candidate.to_lowercase())
+            .map(|o| o == id)
+            .unwrap_or(true)
+        {
             return candidate;
         }
         i += 1;
@@ -259,6 +269,15 @@ mod tests {
         assert_eq!(store_name("f.mkv", &taken, "other"), "f.mkv");
         assert_eq!(store_name("f.mkv", &taken, "mine"), "f_1.mkv");
         assert_eq!(store_name("new.mkv", &taken, "mine"), "new.mkv");
+    }
+
+    #[test]
+    fn store_names_collide_case_insensitively() {
+        let taken: HashMap<String, String> = [("f.mkv".to_string(), "other".to_string())]
+            .into_iter()
+            .collect();
+        assert_eq!(store_name("F.MKV", &taken, "other"), "F.MKV");
+        assert_eq!(store_name("F.MKV", &taken, "mine"), "F_1.MKV");
     }
 
     #[test]

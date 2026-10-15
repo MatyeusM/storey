@@ -50,7 +50,10 @@ pub fn plan_rename(
     let mut taken = std::collections::HashMap::new();
     for (i, other) in ix.files.iter().enumerate() {
         if i != pos && other.stored() {
-            taken.insert(store_base(&other.stored_rel), other.id.clone());
+            taken.insert(
+                store_base(&other.stored_rel).to_lowercase(),
+                other.id.clone(),
+            );
         }
     }
     let final_name = views::store_name(new_name, &taken, &rec.id);

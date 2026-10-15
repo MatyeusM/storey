@@ -8,9 +8,11 @@ in-process instead). This file pins the command surface.
 
 - `.files/` — content store, created by `view` (not by `init`):
   `<original-name>` flat; a name taken by different content gets a `_N`
-  stem suffix (`movie_1.mkv`); files whose hash is already stored are
-  duplicates and are purged — unless the indexed file is gone from
-  disk, which means the content moved: the record is repointed
+  stem suffix (`movie_1.mkv`); names differing only by case count as
+  taken, since macOS/Windows/exFAT compare case-insensitively; files
+  whose hash is already stored are duplicates and are purged — unless
+  the indexed file is gone from disk, which means the content moved:
+  the record is repointed
   (tags kept) instead, so renames are detected, never deleted.
 - `.index.json` — tags, hashes, and view state. Schema v1, namespaced
   under a `storey` header object so foreign `.index.json` files are
@@ -27,9 +29,11 @@ in-process instead). This file pins the command surface.
   every record is hash-verified, then adopted with all metadata intact
   (in-place files stay put with rebased paths; stored objects move
   into the parent `.files/`). The nested `.index.json` is deleted only
-  when all of its records adopt cleanly. Failed nested libraries keep
-  their index and their files are shielded from fresh scans, so the
-  user can repair and re-run instead of losing metadata.
+  when all of its records adopt cleanly, and files stranded in the
+  nested `.files/` are moved into the parent store, never deleted.
+  Failed nested libraries keep their index and their files are
+  shielded from fresh scans, so the user can repair and re-run
+  instead of losing metadata.
 - Storey never copies file content: it moves files, deletes duplicates
   and view artifacts, and links views. It never duplicates bytes.
 

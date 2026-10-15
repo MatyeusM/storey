@@ -132,7 +132,9 @@ plugin can open the file without knowing the library layout:
 ```
 
 - `category` / `value`: the suggested tag. Empty strings are passed
-  through untouched, so don't emit them.
+  through untouched, so don't emit them. Names that fail the tag
+  charset (`docs/CLI-CONTRACT.md`) are dropped by the GUI, exactly
+  like embedded-metadata values.
 - `score`: `0.0`–`1.0` confidence. Higher wins when two plugins suggest
   the same `category`+`value` pair (see Ranking).
 - `source`: free text naming where the hit came from (plugin name,
