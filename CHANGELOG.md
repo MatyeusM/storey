@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- Store names differing only by case count as taken, so `F.MKV` vs
+  `f.mkv` no longer overwrites on case-insensitive filesystems
+  (macOS, Windows, exFAT).
+- Tag category/value names are validated on every write (CLI, GUI,
+  plugin suggestions); invalid names are rejected instead of
+  breaking views.
+- Nested-library adoption moves stranded `.files/` content into the
+  parent store instead of deleting it, and keeps a duplicate file
+  when the parent copy is missing.
+
 ## [0.2.0] - 2026-10-14
 
 ### Added
