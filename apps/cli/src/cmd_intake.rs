@@ -10,8 +10,8 @@ use storey_core::log::Logger;
 
 /// Run `init`: refuse inside libraries, lock, adopt, hash, save.
 pub fn cmd_init(args: &[String], as_json: bool, logger: &Logger) -> i32 {
-    let dry = match parse_init_args(args) {
-        Ok(dry) => dry,
+    let (dry, force) = match parse_init_args(args) {
+        Ok(v) => v,
         Err(msg) => return usage_err(&msg),
     };
     let cwd = match std::env::current_dir() {
@@ -30,7 +30,7 @@ pub fn cmd_init(args: &[String], as_json: bool, logger: &Logger) -> i32 {
     }
     let abort = crate::trap_abort();
     let mut ix = Index::new();
-    match flows::exec_init(&cwd, &mut ix, logger, &abort) {
+    match flows::exec_init(&cwd, &mut ix, logger, &abort, force) {
         Ok(FlowDone::Done(rep)) => {
             emit("init", as_json, &rep);
             if !as_json {
@@ -60,7 +60,7 @@ pub fn cmd_init(args: &[String], as_json: bool, logger: &Logger) -> i32 {
 
 /// Run trusted `update` (plus `--verify`): adopt, hash, save.
 pub fn cmd_update(args: &[String], as_json: bool, logger: &Logger) -> i32 {
-    let (verify, dry) = match parse_update_args(args) {
+    let (verify, dry, force) = match parse_update_args(args) {
         Ok(v) => v,
         Err(msg) => return usage_err(&msg),
     };
@@ -73,38 +73,45 @@ pub fn cmd_update(args: &[String], as_json: bool, logger: &Logger) -> i32 {
         return dry_update_report(&root, &opened.ix, verify, as_json, logger);
     }
     let abort = crate::trap_abort();
-    match flows::exec_update(&root, &mut opened.ix, verify, logger, &abort) {
+    match flows::exec_update(&root, &mut opened.ix, verify, logger, &abort, force) {
         Ok(FlowDone::Done(rep)) => report_update(as_json, &rep),
         Ok(FlowDone::Aborted) => crate::emergency_save(&root, &opened.ix),
         Err(e) => fail(&format!("{e}")),
     }
 }
 
-/// Only `--dry-run` is accepted; anything else is a usage error.
-fn parse_init_args(args: &[String]) -> Result<bool, String> {
+/// Only `--dry-run` and `--force` are accepted; anything else is a usage error.
+fn parse_init_args(args: &[String]) -> Result<(bool, bool), String> {
     let mut dry = false;
+    let mut force = false;
     for a in args {
         if a == "--dry-run" {
             dry = true;
             continue;
         }
-        return Err("init takes no arguments (only --dry-run)".into());
+        if a == "--force" {
+            force = true;
+            continue;
+        }
+        return Err("init takes no arguments (only --dry-run, --force)".into());
     }
-    Ok(dry)
+    Ok((dry, force))
 }
 
-/// Only `--verify` and `--dry-run` are accepted.
-fn parse_update_args(args: &[String]) -> Result<(bool, bool), String> {
+/// Only `--verify`, `--dry-run`, and `--force` are accepted.
+fn parse_update_args(args: &[String]) -> Result<(bool, bool, bool), String> {
     let mut verify = false;
     let mut dry = false;
+    let mut force = false;
     for a in args {
         match a.as_str() {
             "--verify" => verify = true,
             "--dry-run" => dry = true,
+            "--force" => force = true,
             _ => return Err(format!("update: unknown argument {a:?}")),
         }
     }
-    Ok((verify, dry))
+    Ok((verify, dry, force))
 }
 
 fn dry_init_report(root: &std::path::Path, as_json: bool, logger: &Logger) -> i32 {

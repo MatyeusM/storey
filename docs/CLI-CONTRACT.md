@@ -26,14 +26,18 @@ in-process instead). This file pins the command surface.
 - Everything else in the library root is a **view** (regenerable).
 - **Nested libraries** — a subdirectory holding its own `.index.json`
   is a nested library. `init` and `update` fold it into the parent:
-  every record is hash-verified, then adopted with all metadata intact
-  (in-place files stay put with rebased paths; stored objects move
-  into the parent `.files/`). The nested `.index.json` is deleted only
-  when all of its records adopt cleanly, and files stranded in the
-  nested `.files/` are moved into the parent store, never deleted.
-  Failed nested libraries keep their index and their files are
-  shielded from fresh scans, so the user can repair and re-run
-  instead of losing metadata.
+  every record whose file exists at its recorded location is adopted
+  with all metadata intact (in-place files stay put with rebased
+  paths; stored objects move into the parent `.files/`; sizes and
+  hashes are trusted, never re-hashed). The nested `.index.json` is
+  deleted only when all of its records adopt cleanly, and files
+  stranded in the nested `.files/` are moved into the parent store,
+  never deleted. Failed nested libraries keep their index and their
+  files are shielded from fresh scans, so the user can repair and
+  re-run instead of losing metadata. With `--force` the index is
+  removed anyway: resolved records are adopted, unresolved ones are
+  dropped (not added, not reported as problems — this is not a problem)
+  and their files stay for a fresh, untagged scan.
 - Storey never copies file content: it moves files, deletes duplicates
   and view artifacts, and links views. It never duplicates bytes.
 
@@ -78,10 +82,10 @@ they separate values. Violations are usage errors (exit 2).
 
 ## Commands
 
-### `storey init [--json]`
+### `storey init [--force] [--json]`
 
 Creates `.index.json` in cwd — and only that file. Then folds in nested
-libraries (verify + adopt, see Library layout) and recursively scans
+libraries (existence check + adopt, see Library layout) and recursively scans
 cwd. Files stay in place — nothing moves until `view`, and `.files/`
 is not created yet. Regular files are hashed (SHA-256, with progress)
 and recorded with empty tags; symlinks are skipped. A file whose hash
@@ -90,11 +94,11 @@ the indexed file is gone from disk, which means the content moved:
 the record is repointed (tags kept), never deleted. Errors
 (exit 1) if `.index.json` exists in cwd or any ancestor ("already
 inside a library"); nested `.index.json` files are adopted, not
-rejected. Verification failures exit 1 with the problem list in the
+rejected. Unresolved adoption entries exit 1 with the problem list in the
 output. Does not materialize a view. `--dry-run` previews intake
 without adopting, writing, or deleting anything.
 
-### `storey update [--verify] [--dry-run] [--json]`
+### `storey update [--verify] [--force] [--dry-run] [--json]`
 
 Requires a library (an `.index.json` in cwd or an ancestor).
 Folds in nested libraries first, then scans for new files: unindexed

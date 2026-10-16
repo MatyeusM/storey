@@ -67,8 +67,9 @@ fn adopt_into(
     root: &Path,
     logger: &Logger,
     abort: &AtomicBool,
+    force: bool,
 ) -> FlowDone<Adopted> {
-    match adopt::merge(root, ix, logger, abort) {
+    match adopt::merge(root, ix, logger, abort, force) {
         FlowDone::Done(merged) => FlowDone::Done(Adopted {
             skipped: merged.skipped,
             adopted: merged.adopted,
@@ -98,6 +99,7 @@ pub fn exec_init(
     ix: &mut Index,
     logger: &Logger,
     abort: &AtomicBool,
+    force: bool,
 ) -> Result<FlowDone<InitReport>> {
     let mut rep = InitReport {
         added: vec![],
@@ -106,7 +108,7 @@ pub fn exec_init(
         adopted: vec![],
         problems: vec![],
     };
-    let got = match adopt_into(ix, root, logger, abort) {
+    let got = match adopt_into(ix, root, logger, abort, force) {
         FlowDone::Done(got) => got,
         FlowDone::Aborted => return Ok(FlowDone::Aborted),
     };
@@ -167,12 +169,14 @@ pub fn dry_init(root: &Path, ix: &Index, logger: &Logger) -> Result<InitReport> 
 
 /// Execute trusted `update` on an open index: adopt, hash intake,
 /// optionally verify, save.
+#[allow(clippy::too_many_arguments)]
 pub fn exec_update(
     root: &Path,
     ix: &mut Index,
     verify: bool,
     logger: &Logger,
     abort: &AtomicBool,
+    force: bool,
 ) -> Result<FlowDone<UpdateReport>> {
     let mut rep = UpdateReport {
         added: vec![],
@@ -183,7 +187,7 @@ pub fn exec_update(
         reverified: 0,
         problems: vec![],
     };
-    let got = match adopt_into(ix, root, logger, abort) {
+    let got = match adopt_into(ix, root, logger, abort, force) {
         FlowDone::Done(got) => got,
         FlowDone::Aborted => return Ok(FlowDone::Aborted),
     };

@@ -1,13 +1,14 @@
-//! Nested-library adoption: hash-verify sub-indexes record by
-//! record, merge them into the parent with tags and names intact,
-//! and remove adopted `.index.json` files. Duplicates are purged
-//! from disk. Only moves and deletes here — never copies.
+//! Nested-library adoption: merge sub-indexes record by record
+//! into the parent with tags and names intact, and remove adopted
+//! `.index.json` files. Resolution is existence-based (no hashing):
+//! a record is resolved when its file exists at the recorded
+//! location. Duplicates are purged from disk. Only moves and
+//! deletes here — never copies.
 
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use std::sync::atomic::{AtomicBool, Ordering};
 
 use crate::FlowDone;
-use crate::hash;
 use crate::index::{self, Index, Record};
 use crate::library::{self, slash_rel};
 use crate::log::Logger;
@@ -25,7 +26,7 @@ pub struct Result {
     pub adopted: Vec<String>,
     /// Duplicate ids deleted from disk.
     pub purged: Vec<String>,
-    /// Verification failures, left in place.
+    /// Unresolved entries, left in place.
     pub problems: Vec<String>,
     /// Sub-index dirs with problems (files stay untouched).
     pub skipped: Vec<String>,
@@ -33,8 +34,17 @@ pub struct Result {
 
 /// Fold every nested library under root into `ix` (root itself is
 /// excluded, as is anything inside `.files/`). A sub-index is
-/// deleted only when all of its records adopted cleanly.
-pub fn merge(root: &Path, ix: &mut Index, logger: &Logger, abort: &AtomicBool) -> FlowDone<Result> {
+/// deleted only when all of its records adopted cleanly — unless
+/// `force` is set, which deletes it anyway: resolved records are
+/// adopted, unresolved ones are dropped (not added, not reported as
+/// problems) and their files are left for a fresh scan.
+pub fn merge(
+    root: &Path,
+    ix: &mut Index,
+    logger: &Logger,
+    abort: &AtomicBool,
+    force: bool,
+) -> FlowDone<Result> {
     let mut res = Result::default();
     for sub in find_sub_indexes(root) {
         if abort.load(Ordering::Relaxed) {
@@ -45,8 +55,8 @@ pub fn merge(root: &Path, ix: &mut Index, logger: &Logger, abort: &AtomicBool) -
             sub: &sub,
             ix: &mut *ix,
             logger,
-            abort,
             res: &mut res,
+            force,
         });
     }
     FlowDone::Done(res)
@@ -97,7 +107,6 @@ struct Ctx<'a> {
     root: &'a Path,
     sub: &'a str,
     sub_abs: &'a Path,
-    by_loc: &'a std::collections::HashMap<String, hash::Outcome>,
     ix: &'a mut Index,
     res: &'a mut Result,
 }
@@ -108,8 +117,8 @@ struct One<'a> {
     sub: &'a str,
     ix: &'a mut Index,
     logger: &'a Logger,
-    abort: &'a AtomicBool,
     res: &'a mut Result,
+    force: bool,
 }
 
 fn merge_one(ctx: One) {
@@ -124,14 +133,13 @@ fn merge_one(ctx: One) {
             return;
         }
     };
-    let by_loc = hash_sub_records(&sub_abs, &sub_ix, ctx.logger, ctx.abort);
+    let base = ctx.res.problems.len();
     let mut failed = false;
     for rec in &sub_ix.files {
         let mut inner = Ctx {
             root: ctx.root,
             sub: ctx.sub,
             sub_abs: &sub_abs,
-            by_loc: &by_loc,
             ix: &mut *ctx.ix,
             res: &mut *ctx.res,
         };
@@ -139,11 +147,27 @@ fn merge_one(ctx: One) {
             failed = true;
         }
     }
-    if failed {
+    if failed && !ctx.force {
+        ctx.logger.warn(format!(
+            "keeping nested library {} (unresolved entries)",
+            ctx.sub
+        ));
         ctx.res.skipped.push(ctx.sub.to_string());
         return;
     }
-    if !mv::move_store_leftovers(ctx.root, &sub_abs, ctx.ix, &mut *ctx.res) {
+    let mut dropped = 0;
+    if failed {
+        dropped = ctx.res.problems.len() - base;
+        ctx.res.problems.truncate(base);
+    }
+    finish_one(ctx, &sub_abs, dropped);
+}
+
+/// Remove the sub-index after its records resolved (`dropped` counts
+/// records discarded under `force`): move leftover store files up,
+/// delete the index, and log the outcome.
+fn finish_one(ctx: One, sub_abs: &Path, dropped: usize) {
+    if !mv::move_store_leftovers(ctx.root, sub_abs, ctx.ix, &mut *ctx.res) {
         ctx.res.skipped.push(ctx.sub.to_string());
         return;
     }
@@ -155,54 +179,29 @@ fn merge_one(ctx: One) {
     }
     ctx.res.indexes += 1;
     let _ = std::fs::remove_dir(sub_abs.join(index::STORE_DIR));
-    ctx.logger
-        .info(format!("adopted nested library {}", ctx.sub));
-}
-
-/// Hash every indexed location of a sub-library, keyed by
-/// slash-relative path inside it.
-fn hash_sub_records(
-    sub_abs: &Path,
-    sub_ix: &Index,
-    logger: &Logger,
-    abort: &AtomicBool,
-) -> std::collections::HashMap<String, hash::Outcome> {
-    let rels: Vec<String> = sub_ix
-        .files
-        .iter()
-        .map(|r| r.location().to_string())
-        .collect();
-    let abs: Vec<PathBuf> = rels
-        .iter()
-        .map(|r| sub_abs.join(library::from_slash(r)))
-        .collect();
-    let out = hash::files(&abs, hash::workers(), abort, |done, total, path| {
-        logger.progress("hash", done, total, &slash_rel(sub_abs, path));
-    });
-    out.into_iter()
-        .map(|o| {
-            let rel = slash_rel(sub_abs, &o.path);
-            (rel, o)
-        })
-        .collect()
+    if dropped > 0 {
+        ctx.logger.info(format!(
+            "adopted nested library {} (--force: {dropped} unresolved entries dropped, this is not a problem)",
+            ctx.sub
+        ));
+    } else {
+        ctx.logger
+            .info(format!("adopted nested library {}", ctx.sub));
+    }
 }
 
 fn adopt_record(rec: &Record, ctx: &mut Ctx) -> bool {
     if let Some(dup) = ctx.ix.find(&rec.id).cloned()
-        && moved_earlier(ctx.root, rec, &dup)
+        && moved_earlier(ctx.root, ctx.sub_abs, rec, &dup)
     {
         return true;
     }
     let sub = ctx.sub;
-    let outcome = match ctx.by_loc.get(rec.location()) {
-        Some(o) if o.error.is_none() => o.clone(),
-        _ => return problem(ctx.res, &format!("{sub}/{}: missing", rec.location())),
-    };
-    if outcome.hash != rec.id {
-        return problem(
-            ctx.res,
-            &format!("{sub}/{}: content changed", rec.location()),
-        );
+    // Resolved = the file exists at its recorded location. No
+    // hashing: sizes and ids are taken from the child record on
+    // trust (`update --verify` is the content check).
+    if std::fs::symlink_metadata(ctx.sub_abs.join(library::from_slash(rec.location()))).is_err() {
+        return problem(ctx.res, &format!("{sub}/{}: missing", rec.location()));
     }
     if let Some(dup) = ctx.ix.find(&rec.id).cloned() {
         return adopt_duplicate(mv::DupCtx {
@@ -220,7 +219,7 @@ fn adopt_record(rec: &Record, ctx: &mut Ctx) -> bool {
             sub: ctx.sub,
             sub_abs: ctx.sub_abs,
             rec,
-            size: outcome.size,
+            size: rec.size,
             ix: &mut *ctx.ix,
             res: &mut *ctx.res,
         });
@@ -235,7 +234,7 @@ fn adopt_record(rec: &Record, ctx: &mut Ctx) -> bool {
             ),
         );
     }
-    adopt_in_place(ctx.sub, rec, outcome.size, &mut *ctx.ix, &mut *ctx.res);
+    adopt_in_place(ctx.sub, rec, rec.size, &mut *ctx.ix, &mut *ctx.res);
     true
 }
 
@@ -250,13 +249,20 @@ pub(crate) struct StoredCtx<'a> {
     res: &'a mut Result,
 }
 
-/// Whether rec was adopted by a previous pass: a stored record
-/// whose content already lives at the parent location.
-fn moved_earlier(root: &Path, rec: &Record, dup: &Record) -> bool {
+/// Whether rec was adopted by an earlier record in this run: a
+/// stored record whose child copy is already gone while the parent
+/// copy is on disk. The shortcut must require the child to be gone;
+/// otherwise the untouched child blob would be re-imported as an
+/// orphan by `move_store_leftovers`.
+fn moved_earlier(root: &Path, sub_abs: &Path, rec: &Record, dup: &Record) -> bool {
     if !rec.stored() || !dup.stored() {
         return false;
     }
-    std::fs::symlink_metadata(root.join(library::from_slash(&dup.stored_rel))).is_ok()
+    let child_gone =
+        std::fs::symlink_metadata(sub_abs.join(library::from_slash(rec.location()))).is_err();
+    let parent_ok =
+        std::fs::symlink_metadata(root.join(library::from_slash(&dup.stored_rel))).is_ok();
+    child_gone && parent_ok
 }
 
 #[cfg(test)]

@@ -20,7 +20,7 @@ pub fn run_init_flow(cwd: &Path, logger: &storey_core::log::Logger) -> Result<()
     let _lock = storey_core::lock::acquire(cwd)?;
     let abort = AtomicBool::new(false);
     let mut ix = storey_core::index::Index::new();
-    match storey_core::flows::exec_init(cwd, &mut ix, logger, &abort) {
+    match storey_core::flows::exec_init(cwd, &mut ix, logger, &abort, false) {
         Ok(storey_core::flows::FlowDone::Done(_)) => Ok(()),
         Ok(storey_core::flows::FlowDone::Aborted) => Err(support::emergency_save(cwd, &ix)),
         Err(e) => Err(support::short_detail(&e.to_string())),
@@ -39,7 +39,7 @@ pub fn run_update_flow(
     let mut ix = storey_core::index::Index::load(&root)
         .map_err(|e| support::short_detail(&e.to_string()))?;
     let abort = AtomicBool::new(false);
-    match storey_core::flows::exec_update(&root, &mut ix, false, logger, &abort) {
+    match storey_core::flows::exec_update(&root, &mut ix, false, logger, &abort, false) {
         Ok(storey_core::flows::FlowDone::Done(rep)) => Ok(rep),
         Ok(storey_core::flows::FlowDone::Aborted) => Err(support::emergency_save(&root, &ix)),
         Err(e) => Err(support::short_detail(&e.to_string())),

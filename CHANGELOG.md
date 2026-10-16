@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Nested-library adoption is existence-based: a child record resolves
+  when its file exists at the recorded location (no re-hash; sizes
+  and hashes are trusted, `update --verify` stays the content check).
+  Unresolved entries keep the child `.index.json` and exit 1, unless
+  `init`/`update --force` is given, which removes it and drops them
+  (not added, not reported as problems — one stderr note, nothing
+  more).
+
 ### Fixed
 
 - Store names differing only by case count as taken, so `F.MKV` vs
@@ -18,6 +28,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Nested-library adoption moves stranded `.files/` content into the
   parent store instead of deleting it, and keeps a duplicate file
   when the parent copy is missing.
+- Adopting two nested libraries with identical content no longer
+  leaves an orphaned second store copy (the duplicate child blob is
+  purged, never re-imported as an orphan).
 
 ## [0.2.0] - 2026-10-14
 
