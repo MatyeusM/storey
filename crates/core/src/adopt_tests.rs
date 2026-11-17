@@ -19,6 +19,7 @@ fn merges_nested_library() {
     std::fs::write(sub.join(index::STORE_DIR).join("loose.bin"), "junk").unwrap();
     let mut sub_ix = Index::new();
     sub_ix.files.push(Record {
+        duplicates: vec![],
         id: "2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824".into(),
         display_name: "a.txt".into(),
         original_rel: "a.txt".into(),
@@ -39,6 +40,10 @@ fn merges_nested_library() {
     assert_eq!(res.indexes, 1);
     assert_eq!(ix.files.len(), 1);
     assert_eq!(ix.files[0].original_rel, "sub/a.txt");
+    // Parent index is persisted BEFORE the child index is removed: a crash
+    // or later failure cannot lose the adopted metadata.
+    assert!(dir.join(index::FILE_NAME).exists());
+    assert_eq!(Index::load(&dir).unwrap().files.len(), 1);
     assert!(!sub.join(index::FILE_NAME).exists());
     assert!(!sub.join(index::STORE_DIR).exists());
     let loose = dir.join(index::STORE_DIR).join("loose.bin");
@@ -56,6 +61,7 @@ fn keeps_duplicate_when_parent_copy_is_missing() {
     let id = "2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824".to_string();
     let mut sub_ix = Index::new();
     sub_ix.files.push(Record {
+        duplicates: vec![],
         id: id.clone(),
         display_name: "b.txt".into(),
         original_rel: "b.txt".into(),
@@ -66,6 +72,7 @@ fn keeps_duplicate_when_parent_copy_is_missing() {
     sub_ix.save(&sub).unwrap();
     let mut ix = Index::new();
     ix.files.push(Record {
+        duplicates: vec![],
         id,
         display_name: "gone.txt".into(),
         original_rel: "gone.txt".into(),
@@ -98,6 +105,7 @@ fn trusts_record_without_rehash() {
     std::fs::write(sub.join("a.txt"), "changed-bytes").unwrap();
     let mut sub_ix = Index::new();
     sub_ix.files.push(Record {
+        duplicates: vec![],
         id: "abc".into(),
         display_name: "a.txt".into(),
         original_rel: "a.txt".into(),
@@ -131,6 +139,7 @@ fn duplicate_stored_purges_child_copy() {
         std::fs::write(s.join(index::STORE_DIR).join("pic.jpg"), "bytes").unwrap();
         let mut six = Index::new();
         six.files.push(Record {
+            duplicates: vec![],
             id: "abc".into(),
             display_name: "pic.jpg".into(),
             original_rel: "pic.jpg".into(),
@@ -167,6 +176,7 @@ fn force_removes_index_with_missing() {
     let mut sub_ix = Index::new();
     for (name, id) in [("kept.txt", "k1"), ("gone.txt", "g1")] {
         sub_ix.files.push(Record {
+            duplicates: vec![],
             id: id.into(),
             display_name: name.into(),
             original_rel: name.into(),

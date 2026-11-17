@@ -14,6 +14,7 @@ pub enum FlowDone<T> {
     /// Abort flag set: partial state already applied.
     Aborted,
 }
+pub mod flow_preview;
 pub mod flows;
 pub mod hash;
 pub mod index;
@@ -27,5 +28,7 @@ pub mod ops;
 pub mod remove;
 pub mod rename;
 pub mod restore;
+pub mod restore_dups;
 pub mod tags;
+pub mod validate;
 pub mod views;

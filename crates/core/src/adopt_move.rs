@@ -6,6 +6,7 @@ use std::path::Path;
 use super::{Result, StoredCtx};
 use crate::index::{self, Index, Record};
 use crate::library::from_slash;
+use crate::validate;
 use crate::views;
 
 /// Duplicate-resolution context (keeps arity small).
@@ -15,13 +16,15 @@ pub struct DupCtx<'a> {
     pub sub_abs: &'a Path,
     pub rec: &'a Record,
     pub dup: &'a Record,
+    pub ix: &'a mut Index,
     pub res: &'a mut Result,
 }
 
 /// Verified record whose id is already indexed: the same path is
-/// the same object (skip), another path is duplicate content. The
-/// merged file is deleted only when the parent's copy is really on
-/// disk (never delete the last copy on doubt).
+/// the same object (skip), another path is duplicate content. An in-place
+/// duplicate file is kept and recorded on the canonical record's
+/// `duplicates`; only a duplicate *store blob* is deduplicated (the CAS
+/// invariant, never a user file).
 pub fn adopt_duplicate(ctx: DupCtx) -> bool {
     let DupCtx {
         root,
@@ -29,6 +32,7 @@ pub fn adopt_duplicate(ctx: DupCtx) -> bool {
         sub_abs,
         rec,
         dup,
+        ix,
         res,
     } = ctx;
     if dup.location() == format!("{sub}/{}", rec.original_rel) {
@@ -43,6 +47,16 @@ pub fn adopt_duplicate(ctx: DupCtx) -> bool {
                 dup.location()
             ),
         );
+    }
+    if !rec.stored() {
+        let rebased = format!("{sub}/{}", rec.original_rel);
+        if validate::rel(&rebased).is_err() {
+            return problem(res, &format!("{rebased}: unsafe duplicate path"));
+        }
+        let owner = ix.files.iter().position(|r| r.id == rec.id).unwrap_or(0);
+        ix.files[owner].add_duplicate(rebased.clone());
+        res.duplicates.push(rebased);
+        return true;
     }
     let loc = sub_abs.join(from_slash(rec.location()));
     if let Err(e) = std::fs::remove_file(&loc) {
@@ -123,6 +137,7 @@ pub(crate) fn adopt_stored(ctx: StoredCtx) -> bool {
         return problem(res, &format!("{sub_loc}: {e}"));
     }
     ix.files.push(Record {
+        duplicates: vec![],
         id: rec.id.clone(),
         display_name: rec.display_name.clone(),
         original_rel: format!("{sub}/{}", rec.original_rel),
@@ -138,6 +153,7 @@ pub(crate) fn adopt_stored(ctx: StoredCtx) -> bool {
 /// into parent space. The file stays where it is.
 pub fn adopt_in_place(sub: &str, rec: &Record, size: i64, ix: &mut Index, res: &mut Result) {
     ix.files.push(Record {
+        duplicates: vec![],
         id: rec.id.clone(),
         display_name: rec.display_name.clone(),
         original_rel: format!("{sub}/{}", rec.original_rel),

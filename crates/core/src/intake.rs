@@ -79,24 +79,25 @@ pub fn candidates(root: &Path, ix: &Index, skipped: &[String]) -> anyhow::Result
         .collect())
 }
 
-/// Scan outcome: added ids, purged duplicate hashes, repointed ids.
+/// Scan outcome: added ids, duplicate paths kept, repointed ids.
 #[derive(Debug, Default)]
 pub struct Scan {
     pub added: Vec<String>,
-    pub purged: Vec<String>,
+    pub duplicates: Vec<String>,
     pub moved: Vec<String>,
 }
 
 /// Record hashed paths in walk order; first hash wins. A later path
-/// with a known hash is a duplicate and deleted from disk — unless
-/// the indexed file is gone, which means the content moved: repoint
-/// the record (keeping tags) instead. Under `dry`, nothing is
-/// deleted or repointed: classification only.
+/// with a known hash is a duplicate: it stays on disk and is appended to
+/// the canonical record's `duplicates` (storey never deletes a duplicate
+/// silently). Unless the indexed file is gone — then the content moved and
+/// the record is repointed, keeping tags. Under `dry`, everything happens
+/// on a throwaway index, so no real file is touched.
 pub fn fill_index(
     ix: &mut Index,
     root: &Path,
     hashed: &Hashed,
-    dry: bool,
+    _dry: bool,
     abort: &AtomicBool,
 ) -> anyhow::Result<Scan> {
     let mut scan = Scan::default();
@@ -119,13 +120,13 @@ pub fn fill_index(
                 scan.moved.push(dup.id.clone());
                 continue;
             }
-            if !dry {
-                std::fs::remove_file(root.join(library::from_slash(rel)))?;
+            if ix.files[j].add_duplicate(rel.clone()) {
+                scan.duplicates.push(rel.clone());
             }
-            scan.purged.push(hash.clone());
             continue;
         }
         ix.files.push(Record {
+            duplicates: vec![],
             id: hash.clone(),
             display_name: basename(rel),
             original_rel: rel.clone(),

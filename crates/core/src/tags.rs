@@ -239,6 +239,7 @@ mod tests {
     #[test]
     fn mutates_records() {
         let mut rec = Record {
+            duplicates: vec![],
             id: "x".into(),
             display_name: "x".into(),
             original_rel: "x".into(),
@@ -270,6 +271,7 @@ mod tests {
         std::fs::write(dir.join("a.txt"), "hello").unwrap();
         let mut ix = Index::new();
         ix.files.push(Record {
+            duplicates: vec![],
             id: "2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824".into(),
             display_name: "a.txt".into(),
             original_rel: "a.txt".into(),

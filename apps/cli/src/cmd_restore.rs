@@ -8,7 +8,7 @@ use crate::{EXIT_OK, emit, fail, usage_err};
 
 /// `storey restore`: remove view artifacts, move objects back.
 pub fn cmd_restore(args: &[String], as_json: bool, _logger: &Logger) -> i32 {
-    let (force, dry) = match parse_restore_args(args) {
+    let (force, dry, dups) = match parse_restore_args(args) {
         Ok(v) => v,
         Err(msg) => return usage_err(&msg),
     };
@@ -27,8 +27,10 @@ pub fn cmd_restore(args: &[String], as_json: bool, _logger: &Logger) -> i32 {
         problems: vec![],
         untracked: vec![],
         moves: Default::default(),
+        duplicates_recreated: 0,
+        duplicate_paths: vec![],
     };
-    if stored.is_empty() {
+    if stored.is_empty() && !dups {
         emit("restore", as_json, &rep);
         if !as_json {
             println!("nothing to restore");
@@ -39,29 +41,53 @@ pub fn cmd_restore(args: &[String], as_json: bool, _logger: &Logger) -> i32 {
         Ok(rep) => rep,
         Err(code) => return code,
     };
-    run_restore(&mut opened, &stored, dry, as_json, rep)
+    run_restore(
+        &mut opened,
+        RestoreOpts {
+            stored: &stored,
+            dry,
+            dups,
+            as_json,
+        },
+        rep,
+    )
+}
+
+/// Options for the restore execution stage.
+struct RestoreOpts<'a> {
+    stored: &'a [usize],
+    dry: bool,
+    dups: bool,
+    as_json: bool,
 }
 
 /// Execute the dry preview or the live restore.
 fn run_restore(
     opened: &mut crate::Opened,
-    stored: &[usize],
-    dry: bool,
-    as_json: bool,
+    opts: RestoreOpts,
     mut rep: storey_core::restore::RestoreReport,
 ) -> i32 {
+    let RestoreOpts {
+        stored,
+        dry,
+        dups,
+        as_json,
+    } = opts;
     if dry {
-        return dry_restore(as_json, &opened.ix, stored, rep);
+        return dry_restore(as_json, &opened.ix, stored, dups, rep);
     }
     let abort = crate::trap_abort();
-    match storey_core::restore::exec_restore(&opened.root, &mut opened.ix, &abort) {
-        Ok(FlowDone::Done(restored)) => {
-            rep.restored = restored;
+    match storey_core::restore::exec_restore(&opened.root, &mut opened.ix, &abort, dups) {
+        Ok(FlowDone::Done(outcome)) => {
+            rep.restored = outcome.restored;
+            rep.duplicates_recreated = outcome.duplicates;
+            rep.duplicate_paths = outcome.duplicate_paths;
+            rep.problems.extend(outcome.failures);
             emit("restore", as_json, &rep);
             if !as_json {
                 println!(
-                    "restored: {}\nskipped (in place): {}",
-                    rep.restored, rep.skipped
+                    "restored: {}\nskipped (in place): {}\nduplicates recreated: {}",
+                    rep.restored, rep.skipped, rep.duplicates_recreated
                 );
             }
             EXIT_OK
@@ -71,17 +97,19 @@ fn run_restore(
     }
 }
 
-fn parse_restore_args(args: &[String]) -> Result<(bool, bool), String> {
+fn parse_restore_args(args: &[String]) -> Result<(bool, bool, bool), String> {
     let mut force = false;
     let mut dry = false;
+    let mut dups = false;
     for a in args {
         match a.as_str() {
             "--force" => force = true,
             "--dry-run" => dry = true,
+            "--duplicates" => dups = true,
             _ => return Err(format!("restore: unknown argument {a:?}")),
         }
     }
-    Ok((force, dry))
+    Ok((force, dry, dups))
 }
 
 /// Enforce the untracked/conflict/missing guards, returning the
@@ -128,15 +156,21 @@ fn dry_restore(
     as_json: bool,
     ix: &Index,
     stored: &[usize],
+    dups: bool,
     mut rep: storey_core::restore::RestoreReport,
 ) -> i32 {
     rep.moves = storey_core::restore::restore_moves(ix, stored);
+    if dups {
+        rep.duplicate_paths = storey_core::restore::planned_duplicates(ix);
+        rep.duplicates_recreated = rep.duplicate_paths.len();
+    }
     emit("restore", as_json, &rep);
     if !as_json {
         println!(
-            "restore (dry run)\nmove back: {}\nconflicts: {}",
+            "restore (dry run)\nmove back: {}\nconflicts: {}\nduplicates to recreate: {}",
             rep.moves.len(),
-            rep.conflicts.as_ref().map(|c| c.len()).unwrap_or(0)
+            rep.conflicts.as_ref().map(|c| c.len()).unwrap_or(0),
+            rep.duplicates_recreated
         );
     }
     EXIT_OK

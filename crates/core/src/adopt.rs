@@ -2,7 +2,8 @@
 //! into the parent with tags and names intact, and remove adopted
 //! `.index.json` files. Resolution is existence-based (no hashing):
 //! a record is resolved when its file exists at the recorded
-//! location. Duplicates are purged from disk. Only moves and
+//! location. In-place duplicates are recorded, not deleted; duplicate store
+//! blobs are deduplicated. Only moves and
 //! deletes here — never copies.
 
 use std::path::Path;
@@ -24,7 +25,9 @@ pub struct Result {
     pub indexes: usize,
     /// Adopted record ids.
     pub adopted: Vec<String>,
-    /// Duplicate ids deleted from disk.
+    /// On-disk duplicate files recorded, not deleted.
+    pub duplicates: Vec<String>,
+    /// Duplicate store blobs deduplicated by hash.
     pub purged: Vec<String>,
     /// Unresolved entries, left in place.
     pub problems: Vec<String>,
@@ -171,6 +174,17 @@ fn finish_one(ctx: One, sub_abs: &Path, dropped: usize) {
         ctx.res.skipped.push(ctx.sub.to_string());
         return;
     }
+    // Persist the adopted records BEFORE removing the only other copy of
+    // that metadata (the child `.index.json`). Without this, a later failure
+    // in hashing/verification — or a crash — loses the child's tags forever.
+    if let Err(e) = ctx.ix.save(ctx.root) {
+        ctx.res.problems.push(format!(
+            "{}/.index.json: cannot save parent index: {e}",
+            ctx.sub
+        ));
+        ctx.res.skipped.push(ctx.sub.to_string());
+        return;
+    }
     if let Err(e) = std::fs::remove_file(sub_abs.join(index::FILE_NAME)) {
         ctx.res
             .problems
@@ -210,6 +224,7 @@ fn adopt_record(rec: &Record, ctx: &mut Ctx) -> bool {
             sub_abs: ctx.sub_abs,
             rec,
             dup: &dup,
+            ix: &mut *ctx.ix,
             res: &mut *ctx.res,
         });
     }

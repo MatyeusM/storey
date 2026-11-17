@@ -68,7 +68,7 @@ fn plan_stage(
     let mut rep = ViewReport {
         by: by.to_vec(),
         moved: 0,
-        purged: vec![],
+        duplicates: vec![],
         untracked,
         orphans,
         links: 0,

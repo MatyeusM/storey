@@ -230,6 +230,7 @@ mod tests {
 
     fn rec(id: &str, name: &str, tags: &[(&str, &[&str])]) -> Record {
         Record {
+            duplicates: vec![],
             id: id.into(),
             display_name: name.into(),
             original_rel: name.into(),

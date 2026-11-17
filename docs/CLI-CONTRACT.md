@@ -10,10 +10,12 @@ in-process instead). This file pins the command surface.
   `<original-name>` flat; a name taken by different content gets a `_N`
   stem suffix (`movie_1.mkv`); names differing only by case count as
   taken, since macOS/Windows/exFAT compare case-insensitively; files
-  whose hash is already stored are duplicates and are purged — unless
-  the indexed file is gone from disk, which means the content moved:
-  the record is repointed
-  (tags kept) instead, so renames are detected, never deleted.
+  whose hash is already stored are duplicates and are **kept on disk** and
+  recorded on the canonical record's `duplicates` array (storey never deletes
+  a user file behind your back) — unless the indexed file is gone from disk,
+  which means the content moved: the record is repointed
+  (tags kept) instead, so renames are detected, never deleted. Duplicate
+  *store blobs* from adopted libraries are still deduplicated by hash.
 - `.index.json` — tags, hashes, and view state. Schema v1, namespaced
   under a `storey` header object so foreign `.index.json` files are
   never mistaken for ours:
@@ -23,7 +25,15 @@ in-process instead). This file pins the command surface.
   losing each other's records. Readers never lock. A leftover lock
   (killed process) needs a manual remove, which the error names.
   Anything without the header is rejected, never silently misread.
-- Everything else in the library root is a **view** (regenerable).
+- Everything else in the library root is a **view** (regenerable), except
+  nested libraries (directories with their own `.index.json`), which are
+  preserved across `view`/`restore`. Duplicate files are removed when a view
+  is created; their names stay in the index so `restore --duplicates` can
+  recreate them.
+- Every path in the index (record locations, duplicates, tags, display names)
+  is validated on load: it must be relative, contain no `..`/`.` components,
+  and stay inside the library root. A foreign or malicious index is rejected
+  before any filesystem operation.
 - **Nested libraries** — a subdirectory holding its own `.index.json`
   is a nested library. `init` and `update` fold it into the parent:
   every record whose file exists at its recorded location is adopted
@@ -38,8 +48,10 @@ in-process instead). This file pins the command surface.
   removed anyway: resolved records are adopted, unresolved ones are
   dropped (not added, not reported as problems — this is not a problem)
   and their files stay for a fresh, untagged scan.
-- Storey never copies file content: it moves files, deletes duplicates
-  and view artifacts, and links views. It never duplicates bytes.
+- Storey never copies file content: it moves files, records duplicate names
+  and removes the redundant copies at view time, removes view artifacts, and
+  links views. `restore --duplicates` recreates those copies via hard links
+  (symlink fallback), so no bytes are ever duplicated.
 
 ## Invocation
 
@@ -89,7 +101,7 @@ libraries (existence check + adopt, see Library layout) and recursively scans
 cwd. Files stay in place — nothing moves until `view`, and `.files/`
 is not created yet. Regular files are hashed (SHA-256, with progress)
 and recorded with empty tags; symlinks are skipped. A file whose hash
-is already indexed is a duplicate and is deleted immediately — unless
+is already indexed is a duplicate: it stays on disk and is recorded in the record's `duplicates` array — unless
 the indexed file is gone from disk, which means the content moved:
 the record is repointed (tags kept), never deleted. Errors
 (exit 1) if `.index.json` exists in cwd or any ancestor ("already
@@ -103,8 +115,7 @@ without adopting, writing, or deleting anything.
 Requires a library (an `.index.json` in cwd or an ancestor).
 Folds in nested libraries first, then scans for new files: unindexed
 files stay in place and are hashed (with progress) and recorded; a
-file whose hash is already indexed is a duplicate and is deleted
-immediately — unless the indexed file is gone from disk, which means
+file whose hash is already indexed is a duplicate: it stays on disk and is recorded in the record's `duplicates` array — unless the indexed file is gone from disk, which means
 the content moved: the record is repointed (tags kept), never deleted. Default is **trusted**: indexed files are not
 re-hashed. With `--verify`, every indexed path is additionally
 re-hashed and mismatches/absences are reported — except missing files,
@@ -134,14 +145,15 @@ The move into the store happens here, not at index time.
 1. Untracked check — regular files that are neither indexed nor system
    entries abort the command with their paths listed, unless `--force`
    is given (with `--force` they are destroyed; the warning names them).
-2. Ingest — `.files/` is created, then each indexed file is moved into
-   it under its display name; a file whose hash is already stored is a
-   duplicate and is deleted instead. A name taken by different content
-   gets a stem suffix (`movie.mkv` → `movie_1.mkv`, then `_2`, ...) in
-   index order. The index is saved right after the moves, before
-   anything below, so an abort still leaves a loadable index.
+2. Ingest — `.files/` is created, then every non-duplicate indexed file is
+   moved into it under its display name. A file whose content hash is already
+   stored (or already recorded in `duplicates`) is a redundant copy: it is not
+   moved, and step 3 removes it while its name stays in the index. A name
+   taken by different content gets a stem suffix (`movie.mkv` → `movie_1.mkv`,
+   then `_2`, ...) in index order. The index is saved right after the moves,
+   before anything below, so an abort still leaves a loadable index.
 3. Deletes every remaining entry in the library root except `.files/`,
-   `.index.json`, and `.index.lock` (symlinks unlinked, never
+   `.index.json`, `.index.lock`, and nested libraries (symlinks unlinked, never
    followed).
 4. Rebuilds nested folders, one link per object:
    - Missing value at a level → `Unsorted/` at that level, except a
@@ -226,12 +238,16 @@ still in place) only the file and the index record are renamed.
 the tag-charset legality rules apply. Nothing is deleted (`mv` back
 reverses it). `--dry-run` reports the planned renames.
 
-### `storey restore [--force] [--dry-run] [--json]`
+### `storey restore [--force] [--dry-run] [--duplicates] [--json]`
 
 Undoes `view`: removes view artifacts and moves every stored object back
 to its `originalRel`, recreating subdirectories. Records with no
 `storedRel` are skipped (already home).
 
+- `--duplicates` also recreates every file named in a record's `duplicates`
+  array, at its recorded path, as a hard link to the restored object
+  (symlink fallback). No bytes are copied. Without it, duplicates stay
+  removed; their names remain in the index.
 - Regular files that are neither tracked nor derived view artifacts abort
   the command with their paths listed, unless `--force` (destroys them).
 - An existing file at a record's `originalRel` is a conflict: abort
@@ -243,24 +259,29 @@ to its `originalRel`, recreating subdirectories. Records with no
 
 `{"id": "<sha256>", "displayName": "movie.mkv",
 "originalRel": "films/movie.mkv", "storedRel": ".files/movie.mkv",
-"size": n, "tags": {"actor": ["X"]}}` — `storedRel` is `""` until `view`
-ingests the file; `tags` maps category → unique value array.
+"size": n, "tags": {"actor": ["X"]}, "duplicates": ["copy/movie.mkv"]}` —
+`storedRel` is `""` until `view` ingests the file; `tags` maps category →
+unique value array; `duplicates` holds slash-relative paths of redundant
+copies of the same content — recorded at `init`/`update`, removed from disk
+at `view`, and recreated by `restore --duplicates` (omitted when empty).
 
 ## JSON `data` sketches (v1)
 
-- `init`: `{"added": [...], "purged": [...], "moved": [...],
-  "adopted": [...], "problems": [...]}` (ids recorded / dupes deleted /
-  moved content repointed / nested records adopted / failures).
-- `update`: `{"added": [...], "purged": [...], "moved": [...],
-  "adopted": [...], "removed": [...], "reverified": n, "problems": [...]}`
-  (`reverified` is 0 without `--verify`; `removed` holds ids pruned
-  as missing).
-- `view`: `{"by": ["date","actor"], "moved": n, "purged": n,
+- `init`: `{"added": [...], "duplicates": [...], "purged": [...],
+  "moved": [...], "adopted": [...], "problems": [...]}` (ids recorded /
+  duplicate paths recorded / store blobs deduplicated / moved content
+  repointed / nested records adopted / failures).
+- `update`: `{"added": [...], "duplicates": [...], "purged": [...],
+  "moved": [...], "adopted": [...], "removed": [...], "reverified": n,
+  "problems": [...]}` (`reverified` is 0 without `--verify`; `removed` holds
+  ids pruned as missing).
+- `view`: `{"by": ["date","actor"], "moved": n, "duplicates": [...],
   "untracked": [...], "orphans": [...], "links": n, "linkErrors": [...],
-  "unsorted": n}`
-  (+ `plan` link paths and `moves` src→dst map under `--dry-run`).
+  "unsorted": n}` — `duplicates` lists the redundant paths removed from the
+  library root (+ `plan` link paths and `moves` src→dst map under `--dry-run`).
 - `restore`: `{"restored": n, "skipped": n, "conflicts": [...],
-  "problems": [...], "untracked": [...]}` (+ `moves` under `--dry-run`).
+  "problems": [...], "untracked": [...], "duplicates_recreated": n,
+  "duplicate_paths": [...]}` (+ `moves` under `--dry-run`).
 - `list`: array of records (see Record shape).
 - `status`: `{"root": "/abs", "indexed": n, "stored": n,
   "untracked": n, "view": [...]}`.

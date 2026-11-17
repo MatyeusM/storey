@@ -263,6 +263,7 @@ mod tests {
 
     fn record_named(display_name: &str) -> Record {
         Record {
+            duplicates: vec![],
             id: "ab".into(),
             display_name: display_name.into(),
             original_rel: display_name.into(),

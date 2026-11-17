@@ -5,6 +5,7 @@ use std::path::Path;
 
 use crate::index::{Index, STORE_DIR};
 use crate::library;
+use crate::log::Logger;
 use crate::remove;
 use crate::views;
 
@@ -14,6 +15,8 @@ pub struct MvReport {
     pub id: String,
     pub old: String,
     pub new: String,
+    #[serde(skip_serializing_if = "Vec::is_empty", default)]
+    pub link_errors: Vec<String>,
 }
 
 /// The file move for a rename.
@@ -83,18 +86,30 @@ fn store_base(rel: &str) -> String {
     rel.rsplit('/').next().unwrap_or(rel).to_string()
 }
 
-/// Remove old links, move the file, update the record, rebuild
-/// links (stored records only).
-pub fn apply_rename(
-    root: &Path,
-    ix: &mut Index,
-    pos: usize,
-    plan: &RenamePlan,
-    old_links: &[String],
-) -> anyhow::Result<()> {
+/// Context for `apply_rename` (keeps the function's arity small).
+pub struct RenameCtx<'a> {
+    pub root: &'a Path,
+    pub pos: usize,
+    pub plan: &'a RenamePlan,
+    pub old_links: &'a [String],
+    pub logger: &'a Logger,
+}
+
+/// Remove old links, move the file, update the record, then rebuild every
+/// link. The index is saved right after the file move and record update, so a
+/// later link failure can never leave an unsaved, inconsistent index that a
+/// subsequent `--verify` would prune (taking the record's tags with it).
+/// Link failures are warnings, not errors — exactly like `view`.
+pub fn apply_rename(ix: &mut Index, ctx: RenameCtx) -> anyhow::Result<Vec<String>> {
+    let RenameCtx {
+        root,
+        pos,
+        plan,
+        old_links,
+        logger,
+    } = ctx;
     remove::remove_links(root, old_links)?;
-    let rec = &mut ix.files[pos];
-    let was_stored = rec.stored();
+    let was_stored = ix.files[pos].stored();
     std::fs::rename(
         root.join(library::from_slash(&plan.src)),
         root.join(library::from_slash(&plan.dst)),
@@ -106,17 +121,32 @@ pub fn apply_rename(
     } else {
         rec.original_rel = plan.dst.clone();
     }
+    ix.save(root)?;
     if !ix.files[pos].stored() {
-        return Ok(());
+        return Ok(vec![]);
     }
-    let id = ix.files[pos].id.clone();
-    for p in remove::links_for(ix, &id).iter() {
-        let abs = root.join(library::from_slash(p));
-        if let Some(parent) = abs.parent() {
-            std::fs::create_dir_all(parent)?;
+    let stored: Vec<_> = ix.files.iter().filter(|r| r.stored()).cloned().collect();
+    let new_links = crate::views::plan(&stored, &ix.view.by);
+    let by_id: std::collections::HashMap<&str, &crate::index::Record> =
+        ix.files.iter().map(|r| (r.id.as_str(), r)).collect();
+    let mut failed = Vec::new();
+    for link in new_links {
+        let abs = root.join(library::from_slash(&link.view_path));
+        if let Some(parent) = abs.parent()
+            && let Err(e) = std::fs::create_dir_all(parent)
+        {
+            failed.push(format!("{}: {e}", link.view_path));
+            logger.warn(format!("mv: {}: {e}", link.view_path));
+            continue;
         }
-        let store = root.join(library::from_slash(&ix.files[pos].stored_rel));
-        views::create_link(&store, &abs).map_err(|e| anyhow::anyhow!("{p}: {e}"))?;
+        let Some(src) = by_id.get(link.id.as_str()).map(|r| r.stored_rel.clone()) else {
+            continue;
+        };
+        let store = root.join(library::from_slash(&src));
+        if let Err(e) = views::create_link(&store, &abs) {
+            failed.push(format!("{}: {e}", link.view_path));
+            logger.warn(format!("mv: cannot link {}: {e}", link.view_path));
+        }
     }
-    Ok(())
+    Ok(failed)
 }

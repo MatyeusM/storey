@@ -12,6 +12,19 @@ pub struct RmReport {
     pub removed: String,
 }
 
+/// All current view link paths (used by `mv`, which must rebuild the whole
+/// plan so case-collision suffixes stay stable).
+pub fn all_view_links(ix: &Index) -> Vec<String> {
+    if ix.view.by.is_empty() {
+        return vec![];
+    }
+    let stored: Vec<_> = ix.files.iter().filter(|r| r.stored()).cloned().collect();
+    crate::views::plan(&stored, &ix.view.by)
+        .into_iter()
+        .map(|l| l.view_path)
+        .collect()
+}
+
 /// Current view link paths for one id (empty when no view was
 /// ever materialized, so plain filenames are never misclassified).
 pub fn links_for(ix: &Index, id: &str) -> Vec<String> {

@@ -7,7 +7,36 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Security
+
+- `.index.json` data is validated on load: record paths, duplicates, display
+  names and tags must stay inside the library root. A crafted index can no
+  longer make `init`/`update`/`view`/`rm`/`restore`/`mv` move, write or delete
+  files outside the library (including via nested-library adoption).
+
+### Fixed
+
+- `view` no longer destroys a stored object named `.probe-target`/`.probe`:
+  the link-capability probe now runs in a uniquely-named temporary directory.
+- `view`/`restore` preserve nested libraries instead of wiping them, so a
+  failed nested adoption can still be repaired.
+- Nested adoption saves the parent index before removing each child
+  `.index.json`, so a later failure or crash cannot lose adopted metadata.
+- `mv` saves the index immediately after the file rename and rebuilds the full
+  link plan; link failures are non-fatal warnings (no more half-applied
+  renames that a later `--verify` would prune).
+- `restore` persists each completed move and saves before clearing views, so a
+  failure mid-restore no longer leaves an unsaved, inconsistent index.
+
 ### Changed
+
+- Duplicate files are recorded, not deleted at index time: the new per-record
+  `duplicates` array holds their paths and excludes them from future scans.
+  Creating a view moves only non-duplicate files into `.files/` and removes the
+  redundant copies; `restore --duplicates` recreates them (hard link, symlink
+  fallback) so no bytes are ever copied. Reports gain `duplicates` (recorded /
+  removed) and `duplicates_recreated`/`duplicate_paths`; `purged` now covers
+  only store-blob deduplication.
 
 - Nested-library adoption is existence-based: a child record resolves
   when its file exists at the recorded location (no re-hash; sizes

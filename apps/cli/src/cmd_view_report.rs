@@ -53,11 +53,11 @@ pub(crate) fn print_summary(
     }
     let suffix = if dry { " (dry run)" } else { "" };
     println!(
-        "view by {}{}\nmoved: {}\npurged (duplicates): {}\nlinks: {}\nlink errors: {}\nunsorted: {}",
+        "view by {}{}\nmoved: {}\nduplicates (kept): {}\nlinks: {}\nlink errors: {}\nunsorted: {}",
         by.join(","),
         suffix,
         moved,
-        rep.purged.len(),
+        rep.duplicates.len(),
         rep.links,
         rep.link_errors.len(),
         rep.unsorted

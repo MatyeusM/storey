@@ -35,10 +35,11 @@ pub fn cmd_init(args: &[String], as_json: bool, logger: &Logger) -> i32 {
             emit("init", as_json, &rep);
             if !as_json {
                 println!(
-                    "initialized library at {}\nadded: {}\nadopted: {}\npurged (duplicates): {}\nmoved: {}\nproblems: {}",
+                    "initialized library at {}\nadded: {}\nadopted: {}\nduplicates (kept): {}\npurged blobs: {}\nmoved: {}\nproblems: {}",
                     cwd.display(),
                     rep.added.len(),
                     rep.adopted.len(),
+                    rep.duplicates.len(),
                     rep.purged.len(),
                     rep.moved.len(),
                     rep.problems.len()
@@ -121,9 +122,9 @@ fn dry_init_report(root: &std::path::Path, as_json: bool, logger: &Logger) -> i3
             emit("init", as_json, &rep);
             if !as_json {
                 println!(
-                    "init (dry run, adoption skipped)\nwould add: {}\nwould purge (duplicates): {}\nwould repoint (moved): {}\nproblems: {}",
+                    "init (dry run, adoption skipped)\nwould add: {}\nduplicates (kept): {}\nwould repoint (moved): {}\nproblems: {}",
                     rep.added.len(),
-                    rep.purged.len(),
+                    rep.duplicates.len(),
                     rep.moved.len(),
                     rep.problems.len()
                 );
@@ -146,9 +147,9 @@ fn dry_update_report(
             emit("update", as_json, &rep);
             if !as_json {
                 println!(
-                    "update (dry run, adoption skipped)\nwould add: {}\nwould purge (duplicates): {}\nwould repoint (moved): {}\nremoved (missing): {}\nreverified: {}\nproblems: {}",
+                    "update (dry run, adoption skipped)\nwould add: {}\nduplicates (kept): {}\nwould repoint (moved): {}\nremoved (missing): {}\nreverified: {}\nproblems: {}",
                     rep.added.len(),
-                    rep.purged.len(),
+                    rep.duplicates.len(),
                     rep.moved.len(),
                     rep.removed.len(),
                     rep.reverified,
@@ -165,9 +166,10 @@ fn report_update(as_json: bool, rep: &flows::UpdateReport) -> i32 {
     emit("update", as_json, rep);
     if !as_json {
         println!(
-            "added: {}\nadopted: {}\npurged (duplicates): {}\nmoved: {}\nremoved (missing): {}\nreverified: {}\nproblems: {}",
+            "added: {}\nadopted: {}\nduplicates (kept): {}\npurged blobs: {}\nmoved: {}\nremoved (missing): {}\nreverified: {}\nproblems: {}",
             rep.added.len(),
             rep.adopted.len(),
+            rep.duplicates.len(),
             rep.purged.len(),
             rep.moved.len(),
             rep.removed.len(),

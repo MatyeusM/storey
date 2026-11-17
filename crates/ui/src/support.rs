@@ -202,6 +202,7 @@ mod tests {
             .map(|(c, vs)| (c.to_string(), vs.iter().map(|v| v.to_string()).collect()))
             .collect();
         Record {
+            duplicates: vec![],
             id: id.into(),
             display_name: name.into(),
             original_rel: name.into(),

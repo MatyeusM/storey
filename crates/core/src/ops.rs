@@ -94,6 +94,7 @@ mod tests {
     fn filters_match_go() {
         let recs = vec![
             Record {
+                duplicates: vec![],
                 id: "a".into(),
                 display_name: "a".into(),
                 original_rel: "a".into(),
@@ -104,6 +105,7 @@ mod tests {
                     .collect(),
             },
             Record {
+                duplicates: vec![],
                 id: "b".into(),
                 display_name: "b".into(),
                 original_rel: "b".into(),

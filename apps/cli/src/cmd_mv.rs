@@ -4,7 +4,7 @@ use crate::{EXIT_OK, emit, fail, usage_err};
 use storey_core::log::Logger;
 
 /// `storey mv`: rename display name, file, and view links.
-pub fn cmd_mv(args: &[String], as_json: bool, _logger: &Logger) -> i32 {
+pub fn cmd_mv(args: &[String], as_json: bool, logger: &Logger) -> i32 {
     let (dry, target, new_name) = match parse_mv_args(args) {
         Ok(v) => v,
         Err(msg) => return usage_err(&msg),
@@ -25,7 +25,7 @@ pub fn cmd_mv(args: &[String], as_json: bool, _logger: &Logger) -> i32 {
     if new_name == old {
         return unchanged_name(as_json, id, old);
     }
-    let old_links = storey_core::remove::links_for(&opened.ix, &id);
+    let old_links = storey_core::remove::all_view_links(&opened.ix);
     let plan = match storey_core::rename::plan_rename(&opened.root, &opened.ix, pos, &new_name) {
         Ok(plan) => plan,
         Err(msg) => return usage_err(&msg),
@@ -33,18 +33,14 @@ pub fn cmd_mv(args: &[String], as_json: bool, _logger: &Logger) -> i32 {
     if dry {
         return dry_move(as_json, id, old, plan.new_name, old_links.len());
     }
-    if let Err(e) =
-        storey_core::rename::apply_rename(&opened.root, &mut opened.ix, pos, &plan, &old_links)
-    {
-        return fail(&format!("{e}"));
-    }
-    if let Err(e) = opened.ix.save(&opened.root) {
-        return fail(&format!("{e}"));
-    }
-    let rep = storey_core::rename::MvReport {
-        id,
-        old,
-        new: plan.new_name,
+    let rep = match run_rename(&mut opened, pos, &plan, &old_links, logger) {
+        Ok(errors) => storey_core::rename::MvReport {
+            id,
+            old,
+            new: plan.new_name,
+            link_errors: errors,
+        },
+        Err(e) => return fail(&format!("{e}")),
     };
     emit("mv", as_json, &rep);
     if !as_json {
@@ -53,12 +49,33 @@ pub fn cmd_mv(args: &[String], as_json: bool, _logger: &Logger) -> i32 {
     EXIT_OK
 }
 
+/// Apply the rename under the held lock, returning any link warnings.
+fn run_rename(
+    opened: &mut crate::Opened,
+    pos: usize,
+    plan: &storey_core::rename::RenamePlan,
+    old_links: &[String],
+    logger: &Logger,
+) -> anyhow::Result<Vec<String>> {
+    storey_core::rename::apply_rename(
+        &mut opened.ix,
+        storey_core::rename::RenameCtx {
+            root: &opened.root,
+            pos,
+            plan,
+            old_links,
+            logger,
+        },
+    )
+}
+
 /// Report an unchanged name without touching anything.
 fn unchanged_name(as_json: bool, id: String, old: String) -> i32 {
     let rep = storey_core::rename::MvReport {
         new: old.clone(),
         id,
         old,
+        link_errors: vec![],
     };
     emit("mv", as_json, &rep);
     if !as_json {
@@ -73,6 +90,7 @@ fn dry_move(as_json: bool, id: String, old: String, new_name: String, links: usi
         id,
         old,
         new: new_name,
+        link_errors: vec![],
     };
     emit("mv", as_json, &rep);
     if !as_json {

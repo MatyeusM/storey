@@ -19,6 +19,20 @@ pub struct RestoreReport {
     pub untracked: Vec<String>,
     #[serde(skip_serializing_if = "BTreeMap::is_empty", default)]
     pub moves: BTreeMap<String, String>,
+    /// Duplicate files recreated from their canonical object (--duplicates).
+    pub duplicates_recreated: usize,
+    /// Duplicate paths to be recreated (dry run) or recreated (live).
+    #[serde(skip_serializing_if = "Vec::is_empty", default)]
+    pub duplicate_paths: Vec<String>,
+}
+
+/// Outcome of a live restore: canonical files moved back, duplicates recreated.
+#[derive(Debug, Default)]
+pub struct RestoreOutcome {
+    pub restored: usize,
+    pub duplicates: usize,
+    pub duplicate_paths: Vec<String>,
+    pub failures: Vec<String>,
 }
 
 /// Positions of records already ingested into `.files/`.
@@ -70,11 +84,14 @@ pub fn restore_moves(ix: &Index, stored: &[usize]) -> BTreeMap<String, String> {
 
 /// Original paths of records never ingested (survive the wipe).
 pub fn keep_in_place(ix: &Index) -> HashSet<String> {
-    ix.files
+    let mut keep: HashSet<String> = ix
+        .files
         .iter()
         .filter(|r| !r.stored())
         .map(|r| r.original_rel.clone())
-        .collect()
+        .collect();
+    keep.extend(ix.files.iter().flat_map(|r| r.duplicates.iter().cloned()));
+    keep
 }
 
 /// Move stored objects back, clearing their store pointers.
@@ -107,6 +124,9 @@ pub fn move_back(
             root.join(library::from_slash(&dst)),
         )?;
         ix.files[i].stored_rel.clear();
+        // Persist each completed move so a later failure leaves the index
+        // consistent with disk instead of pointing at a missing store blob.
+        ix.save(root)?;
         restored += 1;
     }
     Ok(restored)
@@ -140,10 +160,11 @@ fn collect_entries(
             let entry = entry?;
             let ft = entry.file_type()?;
             let rel = library::slash_rel(root, &entry.path());
-            if rel == STORE_DIR || rel.starts_with(&format!("{STORE_DIR}/")) {
+            if rel.split('/').any(|part| part == STORE_DIR) {
                 continue;
             }
-            if rel == FILE_NAME || rel == LOCK_NAME {
+            let name = rel.rsplit('/').next().unwrap_or(&rel);
+            if name == FILE_NAME || name == LOCK_NAME {
                 continue;
             }
             // Symlinks (and plain files) are entries; real dirs
@@ -202,28 +223,48 @@ fn remove_empty_dirs(
     Ok(())
 }
 
-/// Execute `restore` under the caller's abort flag.
+/// Recreate duplicate files from their canonical object. A duplicate has the
+/// same content hash, so a hard link is enough — no bytes are copied; a
+/// symlink is the fallback when the filesystem refuses hard links. Paths are
+/// validated on index load, so they cannot escape the library root.
 /// Execute `restore` under the caller's abort flag. Reconciles
 /// crash residue first (like `view`), so previously stranded
 /// store files move back instead of lingering in `.files/`.
+/// With `duplicates`, also recreates the files listed in each record's
+/// `duplicates` array (view removed them as redundant copies).
 pub fn exec_restore(
     root: &Path,
     ix: &mut Index,
     abort: &AtomicBool,
-) -> anyhow::Result<FlowDone<usize>> {
+    duplicates: bool,
+) -> anyhow::Result<FlowDone<RestoreOutcome>> {
     crate::intake::reconcile_store(root, ix);
     let stored = stored_positions(ix);
-    clear_views(root, &keep_in_place(ix))?;
+    // Persist the reconciled state before any destructive clear so a crash
+    // or failure cannot leave the index pointing at files we just removed.
+    ix.save(root)?;
+    let mut keep = keep_in_place(ix);
+    keep.extend(library::nested_library_files(root)?);
+    clear_views(root, &keep)?;
     if abort.load(Ordering::Relaxed) {
         return Ok(FlowDone::Aborted);
     }
-    match move_back(root, ix, &stored, abort) {
-        Ok(restored) => {
-            ix.view.by.clear();
-            ix.save(root)?;
-            Ok(FlowDone::Done(restored))
-        }
-        Err(_) if abort.load(Ordering::Relaxed) => Ok(FlowDone::Aborted),
-        Err(e) => Err(e),
+    let restored = match move_back(root, ix, &stored, abort) {
+        Ok(n) => n,
+        Err(_) if abort.load(Ordering::Relaxed) => return Ok(FlowDone::Aborted),
+        Err(e) => return Err(e),
+    };
+    ix.view.by.clear();
+    let mut outcome = RestoreOutcome {
+        restored,
+        ..RestoreOutcome::default()
+    };
+    if duplicates {
+        outcome = recreate_duplicates(root, ix);
+        outcome.restored = restored;
     }
+    ix.save(root)?;
+    Ok(FlowDone::Done(outcome))
 }
+
+pub use crate::restore_dups::{planned_duplicates, recreate_duplicates};

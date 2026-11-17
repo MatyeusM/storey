@@ -12,12 +12,16 @@ use crate::index::Index;
 use crate::intake;
 use crate::log::Logger;
 
+pub use crate::flow_preview::{dry_init, dry_update};
+
 // --- init / update flows -------------------------------------------------
 
 /// `init` payload: intake plus adoption.
 #[derive(Debug, Serialize)]
 pub struct InitReport {
     pub added: Vec<String>,
+    /// On-disk duplicate files recorded (not deleted).
+    pub duplicates: Vec<String>,
     pub purged: Vec<String>,
     pub moved: Vec<String>,
     pub adopted: Vec<String>,
@@ -28,6 +32,8 @@ pub struct InitReport {
 #[derive(Debug, Serialize)]
 pub struct UpdateReport {
     pub added: Vec<String>,
+    /// On-disk duplicate files recorded (not deleted).
+    pub duplicates: Vec<String>,
     pub purged: Vec<String>,
     pub moved: Vec<String>,
     pub adopted: Vec<String>,
@@ -58,6 +64,7 @@ struct Adopted {
     skipped: Vec<String>,
     adopted: Vec<String>,
     problems: Vec<String>,
+    duplicates: Vec<String>,
     purged: Vec<String>,
 }
 
@@ -74,6 +81,7 @@ fn adopt_into(
             skipped: merged.skipped,
             adopted: merged.adopted,
             problems: merged.problems,
+            duplicates: merged.duplicates,
             purged: merged.purged,
         }),
         FlowDone::Aborted => FlowDone::Aborted,
@@ -103,6 +111,7 @@ pub fn exec_init(
 ) -> Result<FlowDone<InitReport>> {
     let mut rep = InitReport {
         added: vec![],
+        duplicates: vec![],
         purged: vec![],
         moved: vec![],
         adopted: vec![],
@@ -114,6 +123,7 @@ pub fn exec_init(
     };
     rep.adopted.extend(got.adopted);
     rep.problems.extend(got.problems);
+    rep.duplicates.extend(got.duplicates);
     rep.purged.extend(got.purged);
     let skipped = got.skipped;
     if aborted(abort) {
@@ -132,7 +142,7 @@ pub fn exec_init(
     match intake::fill_index(ix, root, &hashed, false, abort) {
         Ok(scan) => {
             rep.added.extend(scan.added);
-            rep.purged.extend(scan.purged);
+            rep.duplicates.extend(scan.duplicates);
             rep.moved.extend(scan.moved);
         }
         Err(_) if aborted(abort) => return Ok(FlowDone::Aborted),
@@ -145,26 +155,52 @@ pub fn exec_init(
     Ok(FlowDone::Done(rep))
 }
 
-/// Preview `init` on a throwaway copy: no adoption (it moves
-/// files), no index write, no deletes.
-pub fn dry_init(root: &Path, ix: &Index, logger: &Logger) -> Result<InitReport> {
-    let mut rep = InitReport {
-        added: vec![],
-        purged: vec![],
-        moved: vec![],
-        adopted: vec![],
-        problems: vec![],
-    };
-    let rels = intake::candidates(root, ix, &[])?;
-    let calm = AtomicBool::new(false);
-    let mut hashed = intake::hash_rels(root, &rels, logger, "hash", &calm);
+fn fold_adopt(rep: &mut UpdateReport, got: &Adopted) {
+    rep.adopted.extend(got.adopted.iter().cloned());
+    rep.problems.extend(got.problems.iter().cloned());
+    rep.duplicates.extend(got.duplicates.iter().cloned());
+    rep.purged.extend(got.purged.iter().cloned());
+}
+
+/// Context for the intake scan (keeps arity small).
+struct IntakeCtx<'a> {
+    root: &'a Path,
+    skipped: &'a [String],
+    logger: &'a Logger,
+    abort: &'a AtomicBool,
+}
+
+/// Scan, hash and fill the live index, folding results into the report.
+fn intake_into(ix: &mut Index, rep: &mut UpdateReport, ctx: IntakeCtx) -> Result<FlowDone<()>> {
+    let IntakeCtx {
+        root,
+        skipped,
+        logger,
+        abort,
+    } = ctx;
+    if aborted(abort) {
+        return Ok(FlowDone::Aborted);
+    }
+    let rels = intake::candidates(root, ix, skipped)?;
+    if aborted(abort) {
+        return Ok(FlowDone::Aborted);
+    }
+    let mut hashed = intake::hash_rels(root, &rels, logger, "hash", abort);
+    if aborted(abort) {
+        salvage(ix, root, &hashed);
+        return Ok(FlowDone::Aborted);
+    }
     rep.problems.extend(std::mem::take(&mut hashed.problems));
-    let mut sim = intake::copy_index(ix);
-    let scan = intake::fill_index(&mut sim, root, &hashed, true, &calm)?;
-    rep.added.extend(scan.added);
-    rep.purged.extend(scan.purged);
-    rep.moved.extend(scan.moved);
-    Ok(rep)
+    match intake::fill_index(ix, root, &hashed, false, abort) {
+        Ok(scan) => {
+            rep.added.extend(scan.added);
+            rep.duplicates.extend(scan.duplicates);
+            rep.moved.extend(scan.moved);
+        }
+        Err(_) if aborted(abort) => return Ok(FlowDone::Aborted),
+        Err(e) => return Err(e),
+    }
+    Ok(FlowDone::Done(()))
 }
 
 /// Execute trusted `update` on an open index: adopt, hash intake,
@@ -180,6 +216,7 @@ pub fn exec_update(
 ) -> Result<FlowDone<UpdateReport>> {
     let mut rep = UpdateReport {
         added: vec![],
+        duplicates: vec![],
         purged: vec![],
         moved: vec![],
         adopted: vec![],
@@ -191,33 +228,17 @@ pub fn exec_update(
         FlowDone::Done(got) => got,
         FlowDone::Aborted => return Ok(FlowDone::Aborted),
     };
-    rep.adopted.extend(got.adopted);
-    rep.problems.extend(got.problems);
-    rep.purged.extend(got.purged);
-    let skipped = got.skipped;
-    if aborted(abort) {
-        return Ok(FlowDone::Aborted);
-    }
-    let rels = intake::candidates(root, ix, &skipped)?;
-    if aborted(abort) {
-        return Ok(FlowDone::Aborted);
-    }
-    let mut hashed = intake::hash_rels(root, &rels, logger, "hash", abort);
-    if aborted(abort) {
-        salvage(ix, root, &hashed);
-        return Ok(FlowDone::Aborted);
-    }
-    rep.problems.extend(std::mem::take(&mut hashed.problems));
-    match intake::fill_index(ix, root, &hashed, false, abort) {
-        Ok(scan) => {
-            rep.added.extend(scan.added);
-            rep.purged = [rep.purged, scan.purged].concat();
-            rep.moved.extend(scan.moved);
-        }
-        Err(_) if aborted(abort) => return Ok(FlowDone::Aborted),
-        Err(e) => return Err(e),
-    }
-    if aborted(abort) {
+    fold_adopt(&mut rep, &got);
+    if let FlowDone::Aborted = intake_into(
+        ix,
+        &mut rep,
+        IntakeCtx {
+            root,
+            skipped: &got.skipped,
+            logger,
+            abort,
+        },
+    )? {
         return Ok(FlowDone::Aborted);
     }
     if verify {
@@ -243,36 +264,6 @@ fn verify_index(
     rep.problems.extend(more);
     rep.reverified = reverified;
     rep.removed = removed;
-}
-
-/// Preview `update` on a throwaway copy. Composes with `--verify`.
-pub fn dry_update(root: &Path, ix: &Index, verify: bool, logger: &Logger) -> Result<UpdateReport> {
-    let mut rep = UpdateReport {
-        added: vec![],
-        purged: vec![],
-        moved: vec![],
-        adopted: vec![],
-        removed: vec![],
-        reverified: 0,
-        problems: vec![],
-    };
-    let rels = intake::candidates(root, ix, &[])?;
-    let calm = AtomicBool::new(false);
-    let mut hashed = intake::hash_rels(root, &rels, logger, "hash", &calm);
-    rep.problems.extend(std::mem::take(&mut hashed.problems));
-    let mut sim = intake::copy_index(ix);
-    let scan = intake::fill_index(&mut sim, root, &hashed, true, &calm)?;
-    rep.added.extend(scan.added);
-    rep.purged.extend(scan.purged);
-    rep.moved.extend(scan.moved);
-    if verify {
-        rep.problems.extend(intake::reconcile_store(root, &mut sim));
-        let (more, reverified, removed) = intake::reverify(root, &mut sim, logger, &calm);
-        rep.problems.extend(more);
-        rep.reverified = reverified;
-        rep.removed = removed;
-    }
-    Ok(rep)
 }
 
 /// Abort-aware index save for the emergency path.

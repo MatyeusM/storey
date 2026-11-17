@@ -73,12 +73,28 @@ pub struct Record {
     pub size: i64,
     #[serde(default, deserialize_with = "de_null_default")]
     pub tags: BTreeMap<String, Vec<String>>,
+    /// Other files in the library with the same content. They are kept on
+    /// disk (storey never deletes a duplicate silently) and recorded by their
+    /// slash-relative path so they are excluded from future scans.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub duplicates: Vec<String>,
 }
 
 impl Record {
     /// Whether the object is ingested into `.files/`.
     pub fn stored(&self) -> bool {
         !self.stored_rel.is_empty()
+    }
+
+    /// Record `rel` as another on-disk copy of this object's content.
+    /// Returns false when it was already known.
+    pub fn add_duplicate(&mut self, rel: impl Into<String>) -> bool {
+        let rel = rel.into();
+        if self.duplicates.contains(&rel) || self.location() == rel {
+            return false;
+        }
+        self.duplicates.push(rel);
+        true
     }
 
     /// The record's current path relative to root.
@@ -127,6 +143,10 @@ impl Index {
                 ix.storey.algorithm
             );
         }
+        // Every path in the index is a future filesystem operation. Reject
+        // anything that could escape the library root before any caller uses
+        // it (see `validate`).
+        crate::validate::index(&ix)?;
         Ok(ix)
     }
 
@@ -205,6 +225,7 @@ mod tests {
             stored_rel: String::new(),
             size: 1,
             tags: BTreeMap::new(),
+            duplicates: vec![],
         });
         ix.save(&dir).unwrap();
         let back = Index::load(&dir).unwrap();
@@ -230,10 +251,25 @@ mod tests {
     }
 
     #[test]
+    fn load_rejects_escaping_paths() {
+        let dir = std::env::temp_dir().join(format!("storey-core-idx3-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        std::fs::write(
+            dir.join(FILE_NAME),
+            r#"{"storey":{"schema":1,"algorithm":"sha256"},"files":[{"id":"abc","displayName":"x","originalRel":"../../etc/passwd","size":1,"tags":{}}]}"#,
+        )
+        .unwrap();
+        assert!(Index::load(&dir).is_err());
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
     fn prefix_resolution() {
         let mut ix = Index::new();
         for id in ["abc123", "abc456", "def789"] {
             ix.files.push(Record {
+                duplicates: vec![],
                 id: id.into(),
                 display_name: id.into(),
                 original_rel: id.into(),

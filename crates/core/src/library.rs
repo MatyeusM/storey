@@ -109,22 +109,70 @@ fn ignored_file(name: &str) -> bool {
     IGNORED_NAMES.contains(&name) || IGNORED_SUFFIXES.iter().any(|s| name.ends_with(s))
 }
 
+/// Slash-relative paths of nested libraries: directories below root that
+/// contain their own `.index.json`. Root itself is excluded. These are user
+/// metadata (possibly shielded by a failed adoption), never view artifacts.
+pub fn nested_library_dirs(root: &Path) -> Result<Vec<String>> {
+    let mut dirs = Vec::new();
+    let mut stack = vec![root.to_path_buf()];
+    while let Some(dir) = stack.pop() {
+        for entry in std::fs::read_dir(&dir)? {
+            let entry = entry?;
+            let ft = entry.file_type()?;
+            if !ft.is_dir() || ft.is_symlink() {
+                continue;
+            }
+            if entry.file_name().to_string_lossy() == index::STORE_DIR {
+                continue;
+            }
+            let path = entry.path();
+            if has_index_at(&path) {
+                dirs.push(slash_rel(root, &path));
+            }
+            stack.push(path);
+        }
+    }
+    dirs.sort();
+    Ok(dirs)
+}
+
+/// Every regular file belonging to a nested library. Shielded from fresh
+/// scans and from view/restore wipes so a failed adoption can be repaired.
+pub fn nested_library_files(root: &Path) -> Result<HashSet<String>> {
+    let dirs = nested_library_dirs(root)?;
+    if dirs.is_empty() {
+        return Ok(HashSet::new());
+    }
+    Ok(walk(root)?
+        .into_iter()
+        .filter(|p| dirs.iter().any(|d| p.starts_with(&format!("{d}/"))))
+        .collect())
+}
+
 /// Sorted slash-relative paths of regular files that are neither at
-/// a tracked location nor a known view artifact.
+/// a tracked location nor a known view artifact nor part of a nested library.
 pub fn find_untracked(
     root: &Path,
     tracked: &HashSet<String>,
     artifacts: &HashSet<String>,
 ) -> Result<Vec<String>> {
+    let nested = nested_library_files(root)?;
     Ok(walk(root)?
         .into_iter()
-        .filter(|p| !tracked.contains(p) && !artifacts.contains(p))
+        .filter(|p| !tracked.contains(p) && !artifacts.contains(p) && !nested.contains(p))
         .collect())
 }
 
-/// Current record paths (stored or in place), slash-relative.
+/// Current record paths plus recorded duplicates (stored or in place),
+/// slash-relative. Duplicates are known to the index and must not be
+/// re-scanned or reported as untracked.
 pub fn current_locations(files: &[Record]) -> HashSet<String> {
-    files.iter().map(|r| r.location().to_string()).collect()
+    let mut out = HashSet::new();
+    for rec in files {
+        out.insert(rec.location().to_string());
+        out.extend(rec.duplicates.iter().cloned());
+    }
+    out
 }
 
 #[cfg(test)]
@@ -165,6 +213,7 @@ mod tests {
         let got = find_untracked(&dir, &tracked, &HashSet::new()).unwrap();
         assert_eq!(got, vec!["sub/b.txt"]);
         let locs = current_locations(&[Record {
+            duplicates: vec![],
             id: "x".into(),
             display_name: "a.txt".into(),
             original_rel: "a.txt".into(),

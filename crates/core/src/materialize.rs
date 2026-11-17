@@ -20,7 +20,8 @@ use crate::views::{self, Link};
 pub struct ViewReport {
     pub by: Vec<String>,
     pub moved: usize,
-    pub purged: Vec<String>,
+    /// Duplicate paths found and kept on disk (never deleted).
+    pub duplicates: Vec<String>,
     #[serde(default)]
     pub untracked: Vec<String>,
     #[serde(default)]
@@ -164,23 +165,37 @@ pub fn exec_view(ix: &mut Index, ctx: ExecCtx) -> anyhow::Result<FlowDone<ViewRe
     if abort.load(Ordering::Relaxed) {
         return Ok(FlowDone::Aborted);
     }
-    let (moved, purged) = match materialize_fs::apply_moves(root, ix, moves, abort) {
+    let (moved, folded) = match materialize_fs::apply_moves(root, ix, moves, abort) {
         Ok(v) => v,
         Err(_) if abort.load(Ordering::Relaxed) => return Ok(FlowDone::Aborted),
         Err(e) => return Err(e),
     };
+    // Every duplicate name recorded in the index is about to be removed from
+    // the library root by the wipe; report them all so the deletion is visible.
+    let mut duplicates = folded;
+    duplicates.extend(
+        ix.files
+            .iter()
+            .flat_map(|rec| rec.duplicates.iter().cloned()),
+    );
+    duplicates.sort();
+    duplicates.dedup();
     ix.save(root)?;
     if abort.load(Ordering::Relaxed) {
         return Ok(FlowDone::Aborted);
     }
-    materialize_fs::wipe_non_system(root)?;
+    // Nested libraries are user metadata and survive the wipe even under
+    // --force. Duplicate files are redundant copies: their names stay in the
+    // index so `restore --duplicates` can recreate them later.
+    let keep = library::nested_library_files(root)?;
+    materialize_fs::wipe_non_system(root, &keep)?;
     let (made, link_errors) = materialize_fs::create_links(root, ix, links, logger, abort);
     ix.view.by = by.to_vec();
     ix.save(root)?;
     Ok(FlowDone::Done(ViewReport {
         by: by.to_vec(),
         moved,
-        purged,
+        duplicates,
         untracked,
         orphans,
         links: made,
@@ -201,6 +216,7 @@ mod tests {
         let mut ix = Index::new();
         for (id, name, size) in [("a", "Song.mp3", 1), ("b", "song.mp3", 2)] {
             ix.files.push(Record {
+                duplicates: vec![],
                 id: id.into(),
                 display_name: name.into(),
                 original_rel: name.into(),

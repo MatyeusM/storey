@@ -208,6 +208,7 @@ mod tests {
         let mut state = State::new(dir.display().to_string(), Default::default());
         state.root = dir.display().to_string();
         state.records.push(storey_core::index::Record {
+            duplicates: vec![],
             id: "ab".into(),
             display_name: "a.txt".into(),
             original_rel: "a.txt".into(),

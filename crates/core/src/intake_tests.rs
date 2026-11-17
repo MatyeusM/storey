@@ -20,8 +20,10 @@ fn fills_and_dedupes() {
     let abort = AtomicBool::new(false);
     let scan = fill_index(&mut ix, &dir, &hashed, false, &abort).unwrap();
     assert_eq!(scan.added.len(), 2);
-    assert_eq!(scan.purged.len(), 1);
-    assert!(!dir.join("b.txt").exists());
+    assert_eq!(scan.duplicates, vec!["b.txt".to_string()]);
+    // Non-destructive: the duplicate stays on disk and is recorded.
+    assert!(dir.join("b.txt").exists());
+    assert_eq!(ix.files[0].duplicates, vec!["b.txt".to_string()]);
     let _ = std::fs::remove_dir_all(&dir);
 }
 
@@ -34,6 +36,7 @@ fn reverify_reports_and_prunes() {
     std::fs::write(dir.join("changed.txt"), "new").unwrap();
     fn record(id: String, name: &str, size: i64) -> Record {
         Record {
+            duplicates: vec![],
             id,
             display_name: name.into(),
             original_rel: name.into(),
